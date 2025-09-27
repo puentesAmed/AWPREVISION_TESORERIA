@@ -1,0 +1,70 @@
+:root {
+  --bg:#0f1220;
+  --surface: #171c2f;
+  --text: #e7e9f3;
+  --muted: #a7acc2;
+  --primary: #3b82f6;
+  --danger: #ef4;
+
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*{
+  box-sizing: border-box;
+
+}
+
+html, body, #root{
+  height: 100%;
+}
+
+body{
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: sytsem-ui, Roboto, Arial, sans-serif;
+}
+
+.container{
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.card{
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 24px;
+}
+
+.btn{
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--primary);
+  color: var(--bg);
+}
+
+.btn:hover{
+  background: var(--danger);
+}
+
+.input{
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--muted);
+  background: var(--surface);
+  color: var(--text);
+}
