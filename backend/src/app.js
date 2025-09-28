@@ -8,6 +8,7 @@ import authRoutes from './routes/auth.routes.js'
 import accountRoutes from './routes/accounts.routes.js'
 import cashflowRoutes from './routes/cashflows.routes.js'
 import miscRoutes from './routes/misc.routes.js'
+import scenariosRoutes from './routes/scenarios.routes.js'
 
 const app = express()
 app.use(helmet())
@@ -20,6 +21,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/accounts', accountRoutes)
 app.use('/api/cashflows', cashflowRoutes)
 app.use('/api', miscRoutes)
+app.use('/api/scenarios', scenariosRoutes)
 
 app.get('/health', (_,res)=> res.json({ ok:true }))
 export default app

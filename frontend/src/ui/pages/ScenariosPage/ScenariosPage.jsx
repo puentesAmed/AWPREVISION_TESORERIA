@@ -1,66 +1,26 @@
-import React, { useState } from "react"
+
 import "./ScenariosPage.css"
+import React, { useState } from "react"
+import { useForm } from "react-hook-form"
+import { useScenarios } from "../../../hooks/useScenarios"
 
 /*export function ScenariosPage() {
-  const [scenarios, setScenarios] = useState([
-    { name: "Escenario Base", growth: "3%" },
-    { name: "Pesimista", growth: "-2%" }
-  ])
-
-  const addScenario = () => {
-    const name = prompt("Nombre del nuevo escenario:")
-    if (name) {
-      setScenarios(prev => [...prev, { name, growth: "0%" }])
-    }
-  }
-
-  const removeScenario = (index) => {
-    setScenarios(prev => prev.filter((_, i) => i !== index))
-  }
-
-  return (
-    <div className="page">
-      <h1 className="page-title">Escenarios</h1>
-      <p className="page-subtitle">Define distintos escenarios de previsión de tesorería.</p>
-
-      <div className="card">
-        {scenarios.map((s, i) => (
-          <div key={i} className="scenario-row">
-            <span>{s.name}</span>
-            <span className="muted">{s.growth} crecimiento</span>
-            <button className="btn-danger" onClick={() => removeScenario(i)}>Eliminar</button>
-          </div>
-        ))}
-      </div>
-
-      <button className="btn mt-6" onClick={addScenario}>
-        + Nuevo Escenario
-      </button>
-    </div>
-  )
-}
-*/
-
-import { useForm } from "react-hook-form"
-
-export function ScenariosPage() {
-  const [scenarios, setScenarios] = useState([
-    { name: "Escenario Base", growth: "3%" },
-    { name: "Pesimista", growth: "-2%" }
-  ])
-
+  const { scenarios, isLoading, isError, createMutation, deleteMutation } = useScenarios()
   const [showModal, setShowModal] = useState(false)
   const { register, handleSubmit, reset } = useForm()
 
   const onSubmit = (data) => {
-    setScenarios(prev => [...prev, { name: data.name, growth: data.growth }])
+    createMutation.mutate(data)
     reset()
     setShowModal(false)
   }
 
-  const removeScenario = (index) => {
-    setScenarios(prev => prev.filter((_, i) => i !== index))
+  const removeScenario = (id) => {
+    deleteMutation.mutate(id)
   }
+
+  if (isLoading) return <p>Cargando escenarios...</p>
+  if (isError) return <p>Error al cargar escenarios</p>
 
   return (
     <div className="page">
@@ -68,35 +28,103 @@ export function ScenariosPage() {
       <p className="page-subtitle">Define distintos escenarios de previsión de tesorería.</p>
 
       <div className="card">
-        {scenarios.map((s, i) => (
-          <div key={i} className="scenario-row">
+        {scenarios.map((s) => (
+          <div key={s._id} className="scenario-row">
             <span>{s.name}</span>
             <span className="muted">{s.growth} crecimiento</span>
-            <button className="btn-danger" onClick={() => removeScenario(i)}>Eliminar</button>
+            <button
+              className="btn-danger"
+              onClick={() => removeScenario(s._id)}
+              disabled={deleteMutation.isLoading}
+            >
+              {deleteMutation.isLoading ? "Eliminando..." : "Eliminar"}
+            </button>
           </div>
         ))}
       </div>
 
-      <button className="btn mt-6" onClick={() => setShowModal(true)}>
-        + Nuevo Escenario
-      </button>
+      <button className="btn mt-6" onClick={() => setShowModal(true)}>+ Nuevo Escenario</button>
 
-      {/* Modal */}
       {showModal && (
         <div className="modal-overlay">
           <div className="modal">
             <h2 className="modal-title">Nuevo Escenario</h2>
             <form onSubmit={handleSubmit(onSubmit)} className="modal-form">
-              <input
-                type="text"
-                placeholder="Nombre del escenario"
-                {...register("name", { required: true })}
-              />
-              <input
-                type="text"
-                placeholder="Crecimiento (ej: 5%)"
-                {...register("growth", { required: true })}
-              />
+              <input {...register("name", { required: true })} placeholder="Nombre del escenario" />
+              <input {...register("growth", { required: true })} placeholder="Crecimiento (ej: 5%)" />
+              <div className="modal-actions">
+                <button type="submit" className="btn" disabled={createMutation.isLoading}>
+                  {createMutation.isLoading ? "Guardando..." : "Guardar"}
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+*/
+
+
+
+import { createScenario, deleteScenario } from "../../../api/scenariosService.js"
+
+export function ScenariosPage() {
+  const { scenarios, setScenarios, isLoading, isError } = useScenarios()
+  const [showModal, setShowModal] = useState(false)
+  const { register, handleSubmit, reset } = useForm()
+
+  const onSubmit = async (data) => {
+    try {
+      const newScenario = await createScenario(data)
+      setScenarios(prev => [...prev, newScenario])
+      reset()
+      setShowModal(false)
+    } catch (err) {
+      console.error("Error creando escenario:", err)
+    }
+  }
+
+  const removeScenario = async (id) => {
+    try {
+      await deleteScenario(id)
+      setScenarios(prev => prev.filter(s => s._id !== id))
+    } catch (err) {
+      console.error("Error eliminando escenario:", err)
+    }
+  }
+
+  if (isLoading) return <p>Cargando escenarios...</p>
+  if (isError) return <p>Error al cargar escenarios</p>
+
+  return (
+    <div className="page">
+      <h1 className="page-title">Escenarios</h1>
+      <p className="page-subtitle">Define distintos escenarios de previsión de tesorería.</p>
+
+      <div className="card">
+        {scenarios.map((s) => (
+          <div key={s._id} className="scenario-row">
+            <span>{s.name}</span>
+            <span className="muted">{s.growth} crecimiento</span>
+            <button className="btn-danger" onClick={() => removeScenario(s._id)}>Eliminar</button>
+          </div>
+        ))}
+      </div>
+
+      <button className="btn mt-6" onClick={() => setShowModal(true)}>+ Nuevo Escenario</button>
+
+      {showModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2 className="modal-title">Nuevo Escenario</h2>
+            <form onSubmit={handleSubmit(onSubmit)} className="modal-form">
+              <input {...register("name", { required: true })} placeholder="Nombre del escenario" />
+              <input {...register("growth", { required: true })} placeholder="Crecimiento (ej: 5%)" />
               <div className="modal-actions">
                 <button type="submit" className="btn">Guardar</button>
                 <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
