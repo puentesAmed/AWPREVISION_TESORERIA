@@ -5,7 +5,7 @@ export function AppLayout(){
   const { user, logout } = useAuth(); const nav = useNavigate()
   return (
     <div>
-      <header className="container" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <header className="header-container">
         <nav className="nav">
           <strong>Previsión de Tesorería</strong>
           <NavLink to="/dashboard">Dashboard</NavLink>
@@ -15,8 +15,8 @@ export function AppLayout(){
           <NavLink to="/settings">Ajustes</NavLink>
           <NavLink to="/scenarios">Escenarios</NavLink>
         </nav>
-        <div style={{display:'flex',gap:12,alignItems:'center'}}>
-          <span style={{opacity:.8}}>{user?.name}</span>
+        <div className='user'>
+          <span>{user?.name}</span>
           <button className="btn" onClick={()=>{ logout(); nav('/login') }}>Salir</button>
         </div>
       </header>
