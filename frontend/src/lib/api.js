@@ -10,15 +10,3 @@ api.interceptors.request.use((cfg)=>{
     return cfg
 })
 
-api.interceptors.response.use(
-    r=> r,
-    err=> {
-        const status = err?.response?.status
-        if(status === 401){
-        useAuth.getState().logout()
-        // opcional: redirigir a /login
-        }
-
-        return Promise.reject(err)
-    }
-)

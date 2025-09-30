@@ -1,43 +1,31 @@
 // scenariosService.js
-/*import axios from "axios"
-
-const API_URL = "http://localhost:3000/api/scenarios"
-
-
-export const getScenarios = async () => {
-  try {
-    const res = await axios.get(API_URL)
-    return res.data
-  } catch (err) {
-    console.error('Error fetching scenarios:', err)
-    throw err
-  }
-}
-
-export const createScenario = async (scenario) => {
-  const res = await axios.post(API_URL, scenario)
-  return res.data
-}
-
-export const deleteScenario = async (id) => {
-  await axios.delete(`${API_URL}/${id}`)
-}*/
-
-// scenariosService.js
 import axios from "axios"
 
 const API_URL = "http://localhost:3000/api/scenarios"
 
 // GET all scenarios
 export const getScenarios = async () => {
+  const token = localStorage.getItem("token")
+  console.log("Token:", token)
+
+  if (!token) {
+    throw new Error("No hay token guardado. Por favor inicia sesión primero.")
+  }
+
   try {
-    const res = await axios.get(API_URL) // sin token
+    const res = await axios.get(API_URL, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
     return res.data
   } catch (err) {
-    console.error('Error fetching scenarios:', err)
+    console.error("Error fetching scenarios:", err)
     throw err
   }
 }
+
+
 
 // POST new scenario
 export const createScenario = async (scenario) => {

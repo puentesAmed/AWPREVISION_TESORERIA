@@ -8,19 +8,27 @@ import { AccountsPage } from './ui/pages/AccountsPage.jsx'
 import { ImportPage } from './ui/pages/ImportPage.jsx'
 import { SettingsPage } from './ui/pages/SettingsPage.jsx'
 import { ScenariosPage } from './ui/pages/ScenariosPage/ScenariosPage.jsx'
-import { RequireAuth } from './ui/RequireAuth.jsx'
+
+//import { RequireAuth } from './ui/RequireAuth.jsx'
 
 
 export const router = createBrowserRouter([
     { path: '/', element: <Navigate to="/dashboard" replace /> },
     { path: '/login', element: <LoginPage/> },
-    { path: '/', element: <RequireAuth><AppLayout/></RequireAuth>,
+    { path: '/', element: <AppLayout/>,
         children: [
             { path: '/dashboard', element: <DashboardPage/> },
             { path: '/cashflows', element: <CashflowsPage/> },
             { path: '/accounts', element: <AccountsPage/> },
             { path: '/import', element: <ImportPage/> },
             { path: '/settings', element: <SettingsPage/> },
-            { path: '/scenarios', element: <ScenariosPage/> }
-        ] }
+            { path: '/scenarios', element: <ScenariosPage/> },
+           // { path: 'calendar', element:<CalendarPage/> },
+            //{ path: 'totals', element:<TotalsPage/> },
+            //{ index: true, element: <CalendarPage/> },
+            
+
+        ]
+    
+    }
 ])

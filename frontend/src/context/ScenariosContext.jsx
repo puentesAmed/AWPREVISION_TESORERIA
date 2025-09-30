@@ -5,27 +5,17 @@ const ScenariosContext = createContext()
 
 const ScenariosProvider = ({ children }) => {
   const [scenarios, setScenarios] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isError, setIsError] = useState(false)
 
   useEffect(() => {
+    const token = localStorage.getItem("token")
+    if (!token) return // 👈 no hacer la llamada si no hay token
+
     getScenarios()
-      .then(data => {
-        setScenarios(data)
-        setIsLoading(false)
-      })
-      .catch(err => {
-        console.error("Error cargando escenarios:", err)
-        setIsError(true)
-        setIsLoading(false)
-      })
+      .then(setScenarios)
+      .catch(err => console.error("Error cargando escenarios:", err))
   }, [])
 
-  return (
-    <ScenariosContext.Provider value={{ scenarios, setScenarios, isLoading, isError }}>
-      {children}
-    </ScenariosContext.Provider>
-  )
+  return <ScenariosContext.Provider value={{ scenarios }}>{children}</ScenariosContext.Provider>
 }
 
 export { ScenariosProvider, ScenariosContext }
