@@ -1,5 +1,7 @@
 import Cashflow from '../models/Cashflow.js'
 import BankTx from '../models/BankTx.js'
+
+
 export const list = async (req,res)=>{
   const q = {}
   if(req.query.from || req.query.to){
@@ -13,6 +15,7 @@ export const list = async (req,res)=>{
   res.json(rows)
 }
 export const create = async (req,res)=> res.status(201).json(await Cashflow.create(req.body))
+
 export const update = async (req,res)=> res.json(await Cashflow.findByIdAndUpdate(req.params.id, req.body, { new:true }))
 export const remove = async (req,res)=> { await Cashflow.findByIdAndDelete(req.params.id); res.status(204).end() }
 export const postNow = async (req,res)=>{
