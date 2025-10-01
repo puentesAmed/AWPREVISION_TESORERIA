@@ -1,6 +1,6 @@
 import React from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { useAuth } from '../state/auth.js'
+import { useAuth } from '../../state/auth.js'
 export function AppLayout(){
   const { user, logout } = useAuth(); const nav = useNavigate()
   return (
@@ -8,12 +8,14 @@ export function AppLayout(){
       <header className="header-container">
         <nav className="nav">
           <strong>Previsión de Tesorería</strong>
-          <NavLink to="/dashboard">Dashboard</NavLink>
-          <NavLink to="/cashflows">Flujos</NavLink>
+          <NavLink to="/calendar">Calendario</NavLink>
+          <NavLink to="/totals">Totales</NavLink>
           <NavLink to="/accounts">Cuentas</NavLink>
           <NavLink to="/import">Importar</NavLink>
           <NavLink to="/settings">Ajustes</NavLink>
           <NavLink to="/scenarios">Escenarios</NavLink>
+          <NavLink to="/dashboard">Dashboard</NavLink>
+          <NavLink to="/cashflows">Flujos</NavLink>
         </nav>
         <div className='user'>
           <span>{user?.name}</span>
