@@ -1,4 +1,4 @@
-import mongoose from 'mongoose'
+/*import mongoose from 'mongoose'
 
 const scenarioSchema = new mongoose.Schema({
   name: {
@@ -17,3 +17,13 @@ const scenarioSchema = new mongoose.Schema({
 })
 
 export default mongoose.model('Scenario', scenarioSchema)
+*/
+
+import mongoose from 'mongoose'
+
+const S=new mongoose.Schema({ 
+  name:{type:String,required:true}, 
+  growth:{type:String,default:'0%'}
+},{timestamps:true})
+
+export default mongoose.model('Scenario', S)

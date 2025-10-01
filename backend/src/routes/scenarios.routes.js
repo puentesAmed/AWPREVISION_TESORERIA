@@ -1,4 +1,4 @@
-import { Router } from 'express'
+/*import { Router } from 'express'
 import Scenario from '../models/Scenarios.js'
 
 
@@ -57,3 +57,14 @@ router.delete('/:id', async (req, res) => {
 })
 
 export default router
+*/
+
+import { Router } from 'express'
+import { list,create,update,remove } from '../controllers/scenarios.controller.js'
+
+const r=Router(); 
+r.get('/',list); 
+r.post('/',create); 
+r.put('/:id',update); 
+r.delete('/:id',remove); 
+export default r

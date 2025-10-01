@@ -1,6 +1,12 @@
-import { Schema, model } from 'mongoose'
-const schema = new Schema({
-  name: { type:String, unique:true },
-  kind: { type:String, enum:['operating','financing','investing'], default:'operating' }
-})
-export default model('Category', schema)
+import mongoose from 'mongoose'
+
+const categorySchema = new mongoose.Schema({
+  name: { type: String, unique: true, required: true },
+  kind: { 
+    type: String, 
+    enum: ['operating', 'financing', 'investing'], 
+    default: 'operating' 
+  }
+}, { timestamps: true })
+
+export default mongoose.model('Category', categorySchema)

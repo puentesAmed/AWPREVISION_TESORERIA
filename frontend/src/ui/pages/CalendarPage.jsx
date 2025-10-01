@@ -4,10 +4,10 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import { getCalendar } from '@/api/forecastsService.js'
-import NewForecastModal from '@/ui/components/NewForecastModal.jsx'
+import { NewForecastModal } from '@/ui/components/NewForecastModal.jsx'
 
 
-export default function CalendarPage(){
+export function CalendarPage(){
     const [events,setEvents]=useState([]); 
     const [open,setOpen]=useState(false); 
     const [selectedDate,setSelectedDate]=useState(null); 

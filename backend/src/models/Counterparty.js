@@ -1,7 +1,9 @@
-import { Schema, model } from 'mongoose'
-const schema = new Schema({
-  name: String,
+import mongoose from 'mongoose'
+
+const S = new mongoose.Schema({
+  name: { type:String, unique:true, required:true },
+  contact: String,
   nif: { type:String, unique:true, sparse:true },
   kind: { type:String, enum:['client','supplier','bank'], default:'client' }
-})
-export default model('Counterparty', schema)
+}, { timestamps: true })
+export default mongoose.model('Counterparty', S)
