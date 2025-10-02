@@ -29,11 +29,12 @@ app.use(rateLimit({ windowMs: 60_000, max: 120 }))
 app.use('/api/auth', authRoutes)
 app.use('/api/accounts', accountRoutes)
 app.use('/api/counterparties', counterpartiesRoutes)
-app.use('/api/categories', categoriesRoutes)
+
 app.use('/api/cashflows', cashflowRoutes)
 app.use('/api/reports', reportsRoutes)
 app.use('/api/scenarios', scenariosRoutes)
 app.use('/api', miscRoutes)
+app.use('/api/categories', categoriesRoutes)
 
 app.get('/health', (_,res)=> res.json({ ok:true }))
 export default app
