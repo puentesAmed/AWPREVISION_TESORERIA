@@ -2,6 +2,7 @@ import Cashflow from '../models/Cashflow.js';
 import Category from '../models/Category.js';
 import Account from '../models/Account.js';
 import Counterparty from '../models/Counterparty.js';
+import dayjs from 'dayjs';
 import mongoose from 'mongoose';
 import xlsx from 'xlsx';
 import { parse as parseCsv } from 'csv-parse/sync';
@@ -59,6 +60,38 @@ export const list = async (req, res) => {
   }
 };
 
+
+export const monthly = async (req, res, next) => {
+  try {
+    const from = dayjs().subtract(11, 'month').startOf('month').toDate();
+
+    const rows = await Cashflow.aggregate([
+      { $match: { date: { $gte: from } } },
+      {
+        $group: {
+          _id: { y: { $year: '$date' }, m: { $month: '$date' } },
+          ingresos: { $sum: { $cond: [{ $gt: ['$amount', 0] }, '$amount', 0] } },
+          gastos:   { $sum: { $cond: [{ $lt: ['$amount', 0] }, { $abs: '$amount' }, 0] } }
+        }
+      },
+      { $sort: { '_id.y': 1, '_id.m': 1 } }
+    ]);
+
+    const map = new Map(rows.map(r => [`${r._id.y}-${r._id.m}`, r]));
+    const out = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = dayjs().subtract(i, 'month');
+      const k = `${d.year()}-${d.month()+1}`;
+      const r = map.get(k);
+      out.push({
+        month: d.format('MMM'),
+        ingresos: r?.ingresos ?? 0,
+        gastos: r?.gastos ?? 0
+      });
+    }
+    res.json(out);
+  } catch (e) { next(e); }
+};
 // POST /api/cashflows
 export const createCashflow = async (req, res) => {
   try {

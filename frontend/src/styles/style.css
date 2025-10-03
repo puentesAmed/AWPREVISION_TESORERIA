@@ -119,3 +119,11 @@ body{
 .mt-4 { margin-top: 1rem; }
 .mt-6 { margin-top: 1.5rem; }
 
+/* FullCalendar: mostrar títulos completos dentro del día */
+.fc-event, .fc-event-title {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  line-height: 1.2;
+  font-size: 0.9rem;
+}
