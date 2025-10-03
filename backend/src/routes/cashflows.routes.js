@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { list,createCashflow,updateCashflow,removeCashflow,calendar, upcoming, importCashflows, monthly } from '../controllers/cashflows.controller.js'
+import { list,createCashflow,updateCashflow,removeCashflow,calendar, upcoming, importCashflows, monthly, clearAll } from '../controllers/cashflows.controller.js'
 import multer from 'multer';
 
 
@@ -14,6 +14,7 @@ r.get('/upcoming', upcoming);
 r.get('/monthly', monthly);    
 
 r.post('/',createCashflow);
+r.delete('/all', clearAll);
 r.put('/:id',updateCashflow); 
 r.delete('/:id',removeCashflow);
 r.post('/import', upload.single('file'), importCashflows);

@@ -147,8 +147,18 @@ export const removeCashflow = async (req, res) => {
   }
 };
 
+export const clearAll = async (_req, res) => {
+  try {
+    const result = await Cashflow.deleteMany({});
+    res.json({ ok: true, deleted: result.deletedCount });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+
 // GET /api/cashflows/calendar
-export const calendar = async (req, res) => {
+/*export const calendar = async (req, res) => {
   try {
     const { start, end, account } = req.query;
     const q = {};
@@ -186,6 +196,81 @@ export const calendar = async (req, res) => {
       backgroundColor: i.type === 'out' ? '#ef4444' : '#10b981',
       borderColor: '#374151',
     }));
+
+    res.json(events);
+  } catch (e) {
+    console.error('calendar error:', e);
+    res.status(500).json({ error: e.message });
+  }
+};*/
+
+const toUTCStart = (ymd) => {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+};
+const toUTCEnd = (ymd) => {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+};
+const dateToYMD = (d) => {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+
+export const calendar = async (req, res) => {
+  try {
+    const { start, end, account } = req.query;
+
+    // Filtros seguros por fecha (FullCalendar manda YYYY-MM-DD)
+    const q = {};
+    if (start || end) {
+      q.date = {};
+      if (start) q.date.$gte = toUTCStart(start);
+      if (end)   q.date.$lte = toUTCEnd(end);
+    }
+    if (account) q.account = account;
+
+    const items = await Cashflow.find(
+      q,
+      { date: 1, amount: 1, type: 1, account: 1, counterparty: 1, category: 1, status: 1 }
+    )
+      .sort({ date: 1 })
+      .limit(1000)
+      .populate({ path: 'counterparty', select: 'name' })
+      .populate({ path: 'account', select: 'alias' })
+      .populate({ path: 'category', select: 'name' })
+      .lean();
+
+    const events = items.map((i) => {
+      const ymd = dateToYMD(new Date(i.date)); // 👈 sin hora/ TZ
+      const amountTxt = Number(i.amount).toLocaleString('es-ES', { minimumFractionDigits: 2 });
+      const title = `${i.counterparty?.name ?? '—'} · ${amountTxt}€${i.category?.name ? ` · ${i.category.name}` : ''}`;
+
+      // color por tipo/estado
+      const baseColor = i.type === 'out' ? '#ef4444' : '#10b981';
+      const color = i.status === 'cancelled' ? '#9ca3af' : baseColor; // gris si cancelado
+
+      return {
+        id: String(i._id),
+        title,
+        start: ymd,        // 👈 fecha “YYYY-MM-DD”
+        allDay: true,      // 👈 clave para evitar desfases
+        color,             // FullCalendar v6 acepta 'color' (background + border)
+        extendedProps: {
+          cashflowId: String(i._id),
+          amount: i.amount,
+          type: i.type,              // 'in' | 'out'
+          status: i.status,          // 'pending' | 'paid' | 'cancelled'
+          account: i.account,
+          category: i.category,
+          counterparty: i.counterparty,
+          dateYMD: ymd,
+        },
+      };
+    });
 
     res.json(events);
   } catch (e) {
@@ -358,9 +443,11 @@ export const importCashflows = async (req, res) => {
         if (k) rec[k] = v;
       }
 
-      const date = parseDate(rec.date);
-      if (!date) { errors.push({ row: i + 2, error: 'INVALID_DATE', value: rec.date }); continue; }
 
+      const date = parseDate(rec.date);
+        if (!date) { errors.push({ row: i + 1, error: 'INVALID_DATE', value: rec.date }); continue; }
+
+      
       let amount = parseAmount(rec.amount);
       if (Number.isNaN(amount)) {
         errors.push({ row: i + 2, error: 'INVALID_AMOUNT', value: rec.amount });

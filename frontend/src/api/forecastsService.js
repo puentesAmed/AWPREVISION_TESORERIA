@@ -10,3 +10,8 @@ export const getCalendar = async ({start, end}) => {
         backgroundColor: f.backgroundColor, borderColor: f.borderColor, extendedProps: f.extendedProps
     }))
 }  
+
+export const clearAllCashflows = async () => {
+  const res = await api.delete('/cashflows/all')
+  return res.data
+}
