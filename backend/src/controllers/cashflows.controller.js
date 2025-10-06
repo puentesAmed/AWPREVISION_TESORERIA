@@ -158,51 +158,6 @@ export const clearAll = async (_req, res) => {
 
 
 // GET /api/cashflows/calendar
-/*export const calendar = async (req, res) => {
-  try {
-    const { start, end, account } = req.query;
-    const q = {};
-    if (start || end) {
-      q.date = {};
-      if (start) q.date.$gte = new Date(start);
-      if (end) q.date.$lte = new Date(end);
-    }
-    if (account) q.account = account;
-
-    const items = await Cashflow.find(
-      q,
-      { date: 1, amount: 1, type: 1, account: 1, counterparty: 1, category: 1, status: 1 }
-    )
-      .sort({ date: 1 })
-      .limit(500)
-      .populate({ path: 'counterparty', select: 'name' })
-      .populate({ path: 'account', select: 'alias' })
-      .populate({ path: 'category', select: 'name' })
-      .lean();
-
-    const events = items.map(i => ({
-      id: i._id.toString(),
-      title: `${i.counterparty?.name || '—'} ${i.amount}€`,
-      start: i.date,
-      extendedProps: {
-        cashflowId: i._id.toString(),
-        amount: i.amount,
-        type: i.type,
-        counterparty: i.counterparty,
-        account: i.account,
-        category: i.category,
-        status: i.status,
-      },
-      backgroundColor: i.type === 'out' ? '#ef4444' : '#10b981',
-      borderColor: '#374151',
-    }));
-
-    res.json(events);
-  } catch (e) {
-    console.error('calendar error:', e);
-    res.status(500).json({ error: e.message });
-  }
-};*/
 
 const toUTCStart = (ymd) => {
   const [y, m, d] = ymd.split('-').map(Number);
@@ -245,7 +200,7 @@ export const calendar = async (req, res) => {
       .lean();
 
     const events = items.map((i) => {
-      const ymd = dateToYMD(new Date(i.date)); // 👈 sin hora/ TZ
+      const ymd = toYMD(new Date(i.date)); 
       const amountTxt = Number(i.amount).toLocaleString('es-ES', { minimumFractionDigits: 2 });
       const title = `${i.counterparty?.name ?? '—'} · ${amountTxt}€${i.category?.name ? ` · ${i.category.name}` : ''}`;
 
@@ -306,39 +261,54 @@ export const upcoming = async (req, res) => {
 const norm = s => (s ?? '').toString().trim();
 const lc = s => norm(s).toLowerCase();
 
+//Normalizar fecha
+// Convierte un Date (local) a 12:00 UTC del mismo Y/M/D local
+const fromLocalDateToUTCNoon = (d) =>
+  new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0, 0));
+
+//  YYYY-MM-DD desde un Date, tomando el Y/M/D LOCAL (el que ve el usuario)
+const toYMD = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 const parseDate = (v) => {
   if (!v) return null;
 
-  // Excel / Date ya correcto
-  if (v instanceof Date && !isNaN(v)) return v;
+  // Excel ya lo dio como Date
+  if (v instanceof Date && !isNaN(v)) return fromLocalDateToUTCNoon(v);
+
+  // Excel serial (días desde 1899-12-30)
   if (typeof v === 'number') {
-    const ms = Math.round((v - 25569) * 86400000);
-    const d = new Date(ms);
-    return isNaN(d) ? null : d;
+    const d = new Date(Math.round((v - 25569) * 86400000)); // crea Date en local
+    return isNaN(d) ? null : fromLocalDateToUTCNoon(d);
   }
 
   let s = String(v).trim();
-  s = s.split(/[ T]/)[0]; // quita hora
+  s = s.split(/[ T]/)[0]; // nos quedamos con la parte de fecha
 
-  // ISO: yyyy-mm-dd o yyyy/mm/dd → year-first
+  // yyyy-mm-dd | yyyy/mm/dd
   let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
-  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  if (m) return fromLocalDateToUTCNoon(new Date(+m[1], +m[2] - 1, +m[3]));
 
-  // ESP: dd/mm/yyyy | dd-mm-yyyy | dd.mm.yyyy → day-first
+  // dd/mm/yyyy | dd-mm-yyyy | dd.mm.yyyy
   m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);
-  if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+  if (m) return fromLocalDateToUTCNoon(new Date(+m[3], +m[2] - 1, +m[1]));
 
-  // ESP corto: dd/mm/yy | dd-mm-yy
+  // dd/mm/yy | dd-mm-yy
   m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2})$/);
   if (m) {
     const y2 = +m[3];
     const y = y2 >= 70 ? 1900 + y2 : 2000 + y2;
-    return new Date(y, +m[2] - 1, +m[1]);
+    return fromLocalDateToUTCNoon(new Date(y, +m[2] - 1, +m[1]));
   }
 
-  // Sin fallback a Date(s) para evitar mm/dd
   return null;
 };
+
+
 
 
 const headerMap = (h) => {
@@ -350,7 +320,7 @@ const headerMap = (h) => {
   if (['date','fecha','fechavencimiento','fechavto','fvencimiento','fvto','vencimiento'].includes(k)) return 'date';
   if (['amount','importe','valor','importeoperacion','importevto'].includes(k)) return 'amount';
   if (['type','tipo'].includes(k)) return 'type';
-  if (['account','cuenta','accountalias','cuentaalias'].includes(k)) return 'account';
+  if (['account','cuenta','accountalias','cuentaalias', 'banco'].includes(k)) return 'account';
   if (['counterparty','proveedor','cliente','tercero','beneficiario','pagador'].includes(k)) return 'counterparty';
   if (['category','categoria'].includes(k)) return 'category';
   if (['concept','concepto','descripcion','detalle'].includes(k)) return 'concept';

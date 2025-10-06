@@ -6,6 +6,15 @@ import esLocale from "@fullcalendar/core/locales/es";
 import { getCalendar } from "@/api/forecastsService.js";
 import { NewForecastModal } from "@/ui/components/NewForecastModal.jsx";
 import { api } from "@/lib/api.js";
+import {
+  Box,
+  Button,
+  HStack,
+  Select,
+  VStack,
+  useColorModeValue,
+} from "@chakra-ui/react";
+
 
 export function CalendarPage() {
   const ref = useRef(null);
@@ -14,6 +23,17 @@ export function CalendarPage() {
   const [events, setEvents] = useState([]);       // eventos filtrados
   const [open, setOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
+
+  // Colores dinámicos
+  const bgContent = useColorModeValue("neutral.50", "neutral.900");
+  const textContent = useColorModeValue("neutral.800", "neutral.100");
+  const inputBg = useColorModeValue("neutral.50", "neutral.700");
+  const inputColor = useColorModeValue("neutral.800", "neutral.100");
+  const placeholderColor = useColorModeValue("gray.400", "gray.500");
+  const buttonBg = useColorModeValue("brand.500", "accent.500");
+  const buttonColor = useColorModeValue("white", "black");
+  const buttonHover = useColorModeValue("brand.600", "accent.600");
+  const bgCard = useColorModeValue("neutral.100", "neutral.800");
 
   const [filters, setFilters] = useState({
     accountId: "",
@@ -251,9 +271,12 @@ export function CalendarPage() {
   return (
     <div className="page">
       <div className="card" style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-        <button className="btn" onClick={() => { setSelectedDate(null); setOpen(true); }}>
-          + Nuevo vencimiento
-        </button>
+        <Button
+            bg={buttonBg} color={buttonColor} _hover={{ bg: buttonHover }}
+            onClick={() => { setSelectedDate(null); setOpen(true); }}
+          >
+            + Nuevo vencimiento
+          </Button>
 
         <label>
           Cuenta:
@@ -287,9 +310,10 @@ export function CalendarPage() {
           </select>
         </label>
 
-        <button className="btn" onClick={() => setFilters({ accountId: "", categoryId: "", month: "", year: "" })}>
+        <Button bg={buttonBg} color={buttonColor} _hover={{ bg: buttonHover }}
+        className="btn" onClick={() => setFilters({ accountId: "", categoryId: "", month: "", year: "" })}>
           Limpiar filtros
-        </button>
+        </Button>
       </div>
 
       <div className="card">
@@ -320,3 +344,6 @@ export function CalendarPage() {
     </div>
   );
 }
+
+
+

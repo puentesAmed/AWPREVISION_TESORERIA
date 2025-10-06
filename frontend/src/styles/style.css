@@ -31,7 +31,7 @@ html, body, #root{
 
 body{
   margin: 0;
-  background: var(--bg);
+  /*background: var(--bg);*/
   color: var(--text);
   font-family: sytsem-ui, Roboto, Arial, sans-serif;
 }
@@ -61,19 +61,21 @@ body{
   padding: 2px;
 }
 .card{
-  background: var(--surface);
+  /*background: var(--surface);*/
   border-radius: 14px;
   padding: 24px;
 }
 
 .btn{
   padding: 10px 14px;
-  border: 0;
+  border: 0.8px solid;
   border-radius: 10px;
-  background: var(--primary);
-  color: var(--bg);
+  background: white;
+  /*background: var(--primary);
+  color: var(--bg);*/
 }
 
+dr
 .btn:hover{
   background: var(--danger);
 }
@@ -83,7 +85,7 @@ body{
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--muted);
-  background: var(--surface);
+  /*background: var(--surface);*/
   color: var(--text);
 }
 

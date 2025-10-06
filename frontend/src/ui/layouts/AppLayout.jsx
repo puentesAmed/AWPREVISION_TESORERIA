@@ -1,33 +1,3 @@
-/*import React from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../state/auth.js'
-export function AppLayout(){
-  const { user, logout } = useAuth(); const nav = useNavigate()
-  return (
-    <div>
-      <header className="header-container">
-        <nav className="nav">
-          <strong>Previsión de Tesorería</strong>
-          <NavLink to="/calendar">Calendario</NavLink>
-          <NavLink to="/totals">Totales</NavLink>
-          <NavLink to="/accounts">Cuentas</NavLink>
-          <NavLink to="/import">Importar</NavLink>
-          <NavLink to="/settings">Ajustes</NavLink>
-          <NavLink to="/scenarios">Escenarios</NavLink>
-          <NavLink to="/dashboard">Dashboard</NavLink>
-          <NavLink to="/cashflows">Flujos</NavLink>
-        </nav>
-        <div className='user'>
-          <span>{user?.name}</span>
-          <button className="btn" onClick={()=>{ logout(); nav('/login') }}>Salir</button>
-        </div>
-      </header>
-      <main className="container"><Outlet/></main>
-    </div>
-  )
-}
-*/
-
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
@@ -36,11 +6,14 @@ import {
   HStack,
   IconButton,
   Spacer,
-  useColorMode,
-  useDisclosure,
   VStack,
   Collapse,
   Button,
+  Link as ChakraLink,
+  useColorMode,
+  useDisclosure,
+  useColorModeValue,
+  Text,
 } from '@chakra-ui/react';
 import { HamburgerIcon, CloseIcon, SunIcon, MoonIcon } from '@chakra-ui/icons';
 import { useAuth } from '../../state/auth.js';
@@ -62,33 +35,50 @@ export function AppLayout() {
     { name: 'Flujos', path: '/cashflows' },
   ];
 
+  // Colores dinámicos
+  const bgNavbar = useColorModeValue('brand.100', 'neutral.500');
+  const colorNavbar = useColorModeValue('black', 'white');
+  const linkColor = useColorModeValue('gray.800', 'gray.200');
+  const bgContent = useColorModeValue('neutral.50', 'neutral.900');
+  const textContent = useColorModeValue('neutral.800', 'neutral.100');
+  const bgButton = useColorModeValue('brand.500', 'accent.500');
+  const colorButton = useColorModeValue('white', 'black');
+  const hoverButton = useColorModeValue('brand.600', 'accent.600');
+  const bgMobileMenu = useColorModeValue('brand.100', 'brand.500');
+  const colorMobileMenu = useColorModeValue('black', 'white');
+
   return (
     <Flex direction="column" minH="100vh">
       {/* Navbar */}
-      <Flex as="header" bg="brand.500" color="white" p={4} align="center">
+      <Flex as="header" bg={bgNavbar} color={colorNavbar} p={4} align="center">
         <Box fontWeight="bold" fontSize="xl">Previsión de Tesorería</Box>
         <Spacer />
 
         {/* Desktop Links */}
         <HStack spacing={4} display={{ base: 'none', md: 'flex' }}>
           {pages.map(page => (
-            <NavLink
+            <ChakraLink
+              as={NavLink}
               key={page.path}
               to={page.path}
+              color={linkColor}
+              _hover={{ textDecoration: 'underline' }}
               style={({ isActive }) => ({
                 fontWeight: isActive ? 'bold' : 'normal',
                 textDecoration: isActive ? 'underline' : 'none',
               })}
             >
               {page.name}
-            </NavLink>
+            </ChakraLink>
           ))}
           <IconButton
             aria-label="Toggle Theme"
             icon={colorMode === 'light' ? <MoonIcon /> : <SunIcon />}
             onClick={toggleColorMode}
-            colorScheme="accent"
             size="sm"
+            bg={bgButton}
+            color={colorButton}
+            _hover={{ bg: hoverButton }}
           />
         </HStack>
 
@@ -105,10 +95,13 @@ export function AppLayout() {
 
         {/* User Info */}
         <Box>
-          <span>{user?.name}</span>
+          <Text color={linkColor}>{user?.name}</Text>
           <Button
             size="sm"
             ml={2}
+            bg={bgButton}
+            color={colorButton}
+            _hover={{ bg: hoverButton }}
             onClick={() => { logout(); nav('/login'); }}
           >
             Salir
@@ -119,33 +112,38 @@ export function AppLayout() {
       {/* Mobile Menu Links */}
       <Collapse in={isOpen} animateOpacity>
         <VStack
-          bg="brand.500"
-          color="white"
+          bg={bgMobileMenu}
+          color={colorMobileMenu}
           display={{ md: 'none' }}
           spacing={2}
           p={4}
         >
           {pages.map(page => (
-            <NavLink
+            <ChakraLink
+              as={NavLink}
               key={page.path}
               to={page.path}
-              onClick={onToggle} // Cierra el menú al hacer click
+              onClick={onToggle}
+              color={linkColor}
+              width="100%"
+              textAlign="center"
+              _hover={{ textDecoration: 'underline' }}
               style={({ isActive }) => ({
                 fontWeight: isActive ? 'bold' : 'normal',
                 textDecoration: isActive ? 'underline' : 'none',
-                width: '100%',
-                textAlign: 'center',
               })}
             >
               {page.name}
-            </NavLink>
+            </ChakraLink>
           ))}
           <Button
             size="sm"
-            onClick={toggleColorMode}
             w="full"
             mt={2}
-            colorScheme="accent"
+            bg={bgButton}
+            color={colorButton}
+            _hover={{ bg: hoverButton }}
+            onClick={toggleColorMode}
           >
             {colorMode === 'light' ? 'Oscuro' : 'Claro'}
           </Button>
@@ -156,14 +154,14 @@ export function AppLayout() {
       <Box
         flex="1"
         p={6}
-        bg={colorMode === 'light' ? 'neutral.50' : 'neutral.900'}
-        color={colorMode === 'light' ? 'neutral.800' : 'neutral.100'}
+        bg={bgContent}
+        color={textContent}
       >
-        <Outlet />
+        <Outlet /> {/* Aquí se renderizan las páginas individuales */}
       </Box>
 
       {/* Footer */}
-      <Box as="footer" bg="brand.500" color="white" p={4} textAlign="center">
+      <Box as="footer" bg={bgNavbar} color={colorNavbar} p={4} textAlign="center">
         © 2025 Milugui
       </Box>
     </Flex>
