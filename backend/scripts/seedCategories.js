@@ -43,7 +43,9 @@ await Category.deleteMany({});
 await Category.insertMany([
   { name: 'Transferencias', kind: 'operating' },
   { name: 'Recibo',         kind: 'operating' },
-  { name: 'Pagares',        kind: 'operating' },
+  { name: 'Pagaré',        kind: 'operating' },
+  { name: 'Producto Bancario',        kind: 'operating' },
+  { name: 'Varios',        kind: 'operating' },
 ]);
 
 console.log('Reset OK');
