@@ -14,6 +14,8 @@ import {
   VStack,
   useColorModeValue,
 } from "@chakra-ui/react";
+import { useQuery } from '@tanstack/react-query';
+import { getAccounts } from '@/api/accountsService.js';
 
 
 export function CalendarPage() {
@@ -23,6 +25,7 @@ export function CalendarPage() {
   const [events, setEvents] = useState([]);       // eventos filtrados
   const [open, setOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
+  const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts });
 
   // Colores dinámicos
   const bgContent = useColorModeValue("neutral.50", "neutral.900");
@@ -41,6 +44,8 @@ export function CalendarPage() {
     month: "",
     year: "",
   });
+
+
 
   // ---- helpers fecha ----
   const toISODate = (v) => {
@@ -91,6 +96,8 @@ export function CalendarPage() {
       const data = await getCalendar({}); // ⚠️ backend debe permitir devolver todos
       const arr = Array.isArray(data) ? data : [];
 
+      
+
       const normalized = arr.map((e) => {
         const id = String(e.id ?? e._id ?? e?.extendedProps?.cashflowId ?? "");
         const startISO = pickEventDate(e);
@@ -100,6 +107,10 @@ export function CalendarPage() {
         const categoryName = getCategoryName(e, categoryId);
         const type = getType(e);
         const amount = getAmount(e);
+        const accountColor =
+        e.account?.color ??
+        e.extendedProps?.account?.color ??
+        undefined;
 
         return {
           ...e,
@@ -111,6 +122,7 @@ export function CalendarPage() {
           _categoryName: categoryName,
           _type: type,
           _amount: amount,
+          _accountColor: accountColor,
           extendedProps: {
             ...(e.extendedProps || {}),
             amount,
@@ -118,6 +130,7 @@ export function CalendarPage() {
             accountAlias: accountAlias,
             categoryName,
             counterparty: e.counterparty ?? e.extendedProps?.counterparty ?? null,
+            accountColor,
           },
         };
       }).filter(e => !!e.start);
@@ -144,14 +157,17 @@ export function CalendarPage() {
         const prov = e.extendedProps?.counterparty?.name || "—";
         const amount = e._amount.toLocaleString("es-ES", { minimumFractionDigits: 2 });
         const cat = e._categoryName || "—";
-        const color = e._type === "income" ? "green" : e._type === "expense" ? "red" : undefined;
+        //const color = e._type === "income" ? "green" : e._type === "expense" ? "red" : undefined;
+        const accColor = e._accountColor;
 
         return {
           id: e.id,
           title: `${prov} · ${amount}€ · ${cat}`,
           start: e.start,
           allDay: true,
-          color,
+          backgroundColor: accColor, // <-- fondo
+          borderColor: accColor,     // <-- borde
+          textColor: '#fff',         // opcional para contraste
           extendedProps: e.extendedProps,
         };
       });
@@ -170,21 +186,26 @@ export function CalendarPage() {
           accAlias: e._accountAlias || (accId !== "NA" ? `Cuenta ${accId}` : "Sin cuenta"),
           sum: e._amount,
           type: e._type,
+          accColor: e._accountColor || undefined, // <-- guarda color de esa cuenta
         });
       } else {
         prev.sum += e._amount;
+        if (!prev.accColor && e._accountColor) prev.accColor = e._accountColor;
       }
     }
 
     return Array.from(grouped.values()).map(g => {
       const title = `${g.accAlias}: ${g.sum.toLocaleString("es-ES", { minimumFractionDigits: 2 })}€`;
-      const color = g.type === "income" ? "green" : g.type === "expense" ? "red" : undefined;
+      //const color = g.type === "income" ? "green" : g.type === "expense" ? "red" : undefined;
       return {
         id: `${g.date}__${g.accId}`,
         title,
         start: g.date,
         allDay: true,
-        color,
+        backgroundColor: g.accColor, // <-- usa el color de la cuenta
+        borderColor: g.accColor,
+        textColor: '#fff',
+        extendedProps: { accountColor: g.accColor },
       };
     });
   }
@@ -317,6 +338,20 @@ export function CalendarPage() {
       </div>
 
       <div className="card">
+        {accounts.length > 0 && (
+          <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <strong>Leyenda cuentas:</strong>
+            {accounts.map(a => (
+              <span key={a._id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  width: 12, height: 12, borderRadius: 3,
+                  background: a.color || '#999', border: '1px solid #ddd'
+                }} />
+                <span>{a.alias}</span>
+              </span>
+            ))}
+          </div>
+        )}
         <FullCalendar
           ref={ref}
           plugins={[dayGridPlugin, interactionPlugin]}

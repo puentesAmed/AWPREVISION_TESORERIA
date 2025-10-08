@@ -157,8 +157,8 @@ export const clearAll = async (_req, res) => {
 };
 
 
-// GET /api/cashflows/calendar
 
+// ==== Utilidades de fecha para el calendario (evita “día anterior”) ====
 const toUTCStart = (ymd) => {
   const [y, m, d] = ymd.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
@@ -167,14 +167,15 @@ const toUTCEnd = (ymd) => {
   const [y, m, d] = ymd.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
 };
-const dateToYMD = (d) => {
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
+
+const toYMD = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 };
 
-
+// GET /api/cashflows/calendar
 export const calendar = async (req, res) => {
   try {
     const { start, end, account } = req.query;
@@ -195,7 +196,7 @@ export const calendar = async (req, res) => {
       .sort({ date: 1 })
       .limit(1000)
       .populate({ path: 'counterparty', select: 'name' })
-      .populate({ path: 'account', select: 'alias' })
+      .populate({ path: 'account', select: 'alias color' })
       .populate({ path: 'category', select: 'name' })
       .lean();
 
@@ -205,21 +206,31 @@ export const calendar = async (req, res) => {
       const title = `${i.counterparty?.name ?? '—'} · ${amountTxt}€${i.category?.name ? ` · ${i.category.name}` : ''}`;
 
       // color por tipo/estado
-      const baseColor = i.type === 'out' ? '#ef4444' : '#10b981';
-      const color = i.status === 'cancelled' ? '#9ca3af' : baseColor; // gris si cancelado
+     // const baseColor = i.type === 'out' ? '#ef4444' : '#10b981';
+     // const color = i.status === 'cancelled' ? '#9ca3af' : baseColor; // gris si cancelado
+     // const evColor = i.account?.color || '#3B82F6';
+
+     // 1) gris si cancelado
+    // 2) si no, usa color de la cuenta
+    // 3) fallback por tipo si la cuenta no tiene color
+    const fallback = i.type === 'out' ? '#ef4444' : '#10b981';
+    const base = i.account?.color || fallback;
+    //const color = i.status === 'cancelled' ? '#9ca3af' : base;
+    const accColor = i.account?.color;
+    
 
       return {
         id: String(i._id),
         title,
-        start: ymd,        // 👈 fecha “YYYY-MM-DD”
-        allDay: true,      // 👈 clave para evitar desfases
-        color,             // FullCalendar v6 acepta 'color' (background + border)
+        start: ymd,
+        allDay: true,
+        color: accColor || fallback,
         extendedProps: {
           cashflowId: String(i._id),
           amount: i.amount,
-          type: i.type,              // 'in' | 'out'
-          status: i.status,          // 'pending' | 'paid' | 'cancelled'
-          account: i.account,
+          type: i.type,
+          status: i.status,
+          account: i.account,       // <-- trae alias y color
           category: i.category,
           counterparty: i.counterparty,
           dateYMD: ymd,
@@ -261,18 +272,12 @@ export const upcoming = async (req, res) => {
 const norm = s => (s ?? '').toString().trim();
 const lc = s => norm(s).toLowerCase();
 
-//Normalizar fecha
+// Normalización para evitar desfase de día al guardar
 // Convierte un Date (local) a 12:00 UTC del mismo Y/M/D local
 const fromLocalDateToUTCNoon = (d) =>
   new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0, 0));
 
 //  YYYY-MM-DD desde un Date, tomando el Y/M/D LOCAL (el que ve el usuario)
-const toYMD = (d) => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
 
 const parseDate = (v) => {
   if (!v) return null;

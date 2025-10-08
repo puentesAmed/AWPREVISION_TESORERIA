@@ -1,24 +1,3 @@
-
-/*import 'dotenv/config'
-import mongoose from 'mongoose'
-import Category from '../src/models/Category.js'
-import Cashflow from '../src/models/Cashflow.js'
-
-await mongoose.connect(process.env.MONGODB_URI);
-
-// 1) Quitar referencias antiguas
-await Cashflow.updateMany({ category: { $ne: null } }, { $set: { category: null } });
-
-// 2) Resetear categorías
-await Category.deleteMany({});
-await Category.insertMany([
-  { name: 'Transferencias', kind: 'operating' },
-  { name: 'Recibo',         kind: 'operating' },
-  { name: 'Pagares',        kind: 'operating' },
-]);
-
-console.log('Reset OK');
-await mongoose.disconnect();*/
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
