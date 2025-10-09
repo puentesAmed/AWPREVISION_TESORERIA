@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { list,createCashflow,updateCashflow,removeCashflow,calendar, upcoming, importCashflows, monthly, clearAll } from '../controllers/cashflows.controller.js'
+import { list,createCashflow,updateCashflow,removeCashflow,calendar, upcoming, importCashflows, monthly, clearAll, updateStatus } from '../controllers/cashflows.controller.js'
 import multer from 'multer';
 
 
@@ -18,6 +18,9 @@ r.delete('/all', clearAll);
 r.put('/:id',updateCashflow); 
 r.delete('/:id',removeCashflow);
 r.post('/import', upload.single('file'), importCashflows);
+
+// ✅ NUEVA: cambiar estado (p.ej. a "paid")
+r.patch('/:id/status', updateStatus)
 
 
 export default r

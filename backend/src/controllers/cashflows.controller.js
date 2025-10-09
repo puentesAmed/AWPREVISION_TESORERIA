@@ -156,6 +156,16 @@ export const clearAll = async (_req, res) => {
   }
 };
 
+//HANDLER PARA ACTUALIZAR EL STATUS DE UN CASHFLOW
+// === Estado UI derivado (pendiente | vencido | pagado) ===
+const computeUiStatus = (doc) => {
+  if (doc.status === 'paid') return 'paid';
+  // compara solo por Y-M-D local
+  const todayYMD = toYMD(new Date());
+  const docYMD   = toYMD(new Date(doc.date));
+  if (doc.status === 'pending' && docYMD < todayYMD) return 'overdue'; // "Vencido"
+  return 'pending';
+};
 
 
 // ==== Utilidades de fecha para el calendario (evita “día anterior”) ====
@@ -200,22 +210,17 @@ export const calendar = async (req, res) => {
       .populate({ path: 'category', select: 'name' })
       .lean();
 
-    const events = items.map((i) => {
+    /*const events = items.map((i) => {
       const ymd = toYMD(new Date(i.date)); 
       const amountTxt = Number(i.amount).toLocaleString('es-ES', { minimumFractionDigits: 2 });
       const title = `${i.counterparty?.name ?? '—'} · ${amountTxt}€${i.category?.name ? ` · ${i.category.name}` : ''}`;
 
-      // color por tipo/estado
-     // const baseColor = i.type === 'out' ? '#ef4444' : '#10b981';
-     // const color = i.status === 'cancelled' ? '#9ca3af' : baseColor; // gris si cancelado
-     // const evColor = i.account?.color || '#3B82F6';
-
+      
      // 1) gris si cancelado
     // 2) si no, usa color de la cuenta
     // 3) fallback por tipo si la cuenta no tiene color
     const fallback = i.type === 'out' ? '#ef4444' : '#10b981';
     const base = i.account?.color || fallback;
-    //const color = i.status === 'cancelled' ? '#9ca3af' : base;
     const accColor = i.account?.color;
     
 
@@ -236,7 +241,46 @@ export const calendar = async (req, res) => {
           dateYMD: ymd,
         },
       };
+    });*/
+
+    const events = items.map((i) => {
+      const ymd = toYMD(new Date(i.date));
+      const amountTxt = Number(i.amount).toLocaleString('es-ES', { minimumFractionDigits: 2 });
+      const title = `${i.counterparty?.name ?? '—'} · ${amountTxt}€${i.category?.name ? ` · ${i.category.name}` : ''}`;
+
+      // estado UI derivado
+      const uiStatus = computeUiStatus(i); // 'paid' | 'overdue' | 'pending'
+
+      // color:
+      // - paid: gris
+      // - overdue: ámbar
+      // - pending: color de cuenta o fallback por tipo
+      const fallback = i.type === 'out' ? '#ef4444' : '#10b981';
+      const base     = i.account?.color || fallback;
+      let color      = base;
+      if (uiStatus === 'paid')    color = '#9ca3af';
+      if (uiStatus === 'overdue') color = '#f59e0b';
+
+      return {
+        id: String(i._id),
+        title,
+        start: ymd,
+        allDay: true,
+        color,
+        extendedProps: {
+          cashflowId: String(i._id),
+          amount: i.amount,
+          type: i.type,
+          status: i.status,   // persistido: pending|paid|cancelled
+          uiStatus,           // derivado: pending|overdue|paid
+          account: i.account,
+          category: i.category,
+          counterparty: i.counterparty,
+          dateYMD: ymd,
+        },
+      };
     });
+
 
     res.json(events);
   } catch (e) {
@@ -244,6 +288,28 @@ export const calendar = async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 };
+
+export const updateStatus = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { status } = req.body
+    const allowed = ['pending','paid','cancelled']
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ error: 'INVALID_STATUS' })
+    }
+    const doc = await Cashflow.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    ).populate('account counterparty category')
+
+    if (!doc) return res.status(404).json({ error: 'not_found' })
+    res.json(doc)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+}
+
 
 // GET /api/cashflows/upcoming
 export const upcoming = async (req, res) => {

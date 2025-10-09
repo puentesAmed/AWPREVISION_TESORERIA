@@ -16,6 +16,7 @@ import {
 } from "@chakra-ui/react";
 import { useQuery } from '@tanstack/react-query';
 import { getAccounts } from '@/api/accountsService.js';
+import { setCashflowStatus } from '@/api/cashflowsService.js';
 
 
 export function CalendarPage() {
@@ -95,9 +96,8 @@ export function CalendarPage() {
     try {
       const data = await getCalendar({}); // ⚠️ backend debe permitir devolver todos
       const arr = Array.isArray(data) ? data : [];
-
       
-
+      
       const normalized = arr.map((e) => {
         const id = String(e.id ?? e._id ?? e?.extendedProps?.cashflowId ?? "");
         const startISO = pickEventDate(e);
@@ -107,10 +107,16 @@ export function CalendarPage() {
         const categoryName = getCategoryName(e, categoryId);
         const type = getType(e);
         const amount = getAmount(e);
+        
+        const backendColor = e.color || e.extendedProps?.color || undefined; // ⟵ color backend
+        
+
         const accountColor =
         e.account?.color ??
         e.extendedProps?.account?.color ??
         undefined;
+
+        const uiStatus = e.extendedProps?.uiStatus;     // ⟵ 'pending' | 'overdue' | 'paid'
 
         return {
           ...e,
@@ -123,6 +129,8 @@ export function CalendarPage() {
           _type: type,
           _amount: amount,
           _accountColor: accountColor,
+          _color: backendColor,        // ⟵ guarda color backend
+          _uiStatus: uiStatus,   
           extendedProps: {
             ...(e.extendedProps || {}),
             amount,
@@ -131,6 +139,7 @@ export function CalendarPage() {
             categoryName,
             counterparty: e.counterparty ?? e.extendedProps?.counterparty ?? null,
             accountColor,
+            uiStatus,
           },
         };
       }).filter(e => !!e.start);
@@ -157,8 +166,8 @@ export function CalendarPage() {
         const prov = e.extendedProps?.counterparty?.name || "—";
         const amount = e._amount.toLocaleString("es-ES", { minimumFractionDigits: 2 });
         const cat = e._categoryName || "—";
-        //const color = e._type === "income" ? "green" : e._type === "expense" ? "red" : undefined;
-        const accColor = e._accountColor;
+        const fallback = e._type === "out" ? "#ef4444" : "#10b981";
+        const accColor = e._color || e._accountColor || fallback; // <-- usa color backend o de cuenta o por tipo
 
         return {
           id: e.id,
@@ -178,6 +187,9 @@ export function CalendarPage() {
     for (const e of list) {
       const accId = e._accountId || "NA";
       const key = `${e.start}__${accId}`;
+      const fallback = e._type === "out" ? "#ef4444" : "#10b981";
+      const accColor = e._color || e._accountColor || fallback;
+      
       const prev = grouped.get(key);
       if (!prev) {
         grouped.set(key, {
@@ -185,27 +197,29 @@ export function CalendarPage() {
           accId,
           accAlias: e._accountAlias || (accId !== "NA" ? `Cuenta ${accId}` : "Sin cuenta"),
           sum: e._amount,
-          type: e._type,
-          accColor: e._accountColor || undefined, // <-- guarda color de esa cuenta
+          accColor,
         });
       } else {
         prev.sum += e._amount;
-        if (!prev.accColor && e._accountColor) prev.accColor = e._accountColor;
+        if (!prev.accColor && accColor) prev.accColor = accColor;
       }
     }
 
     return Array.from(grouped.values()).map(g => {
-      const title = `${g.accAlias}: ${g.sum.toLocaleString("es-ES", { minimumFractionDigits: 2 })}€`;
-      //const color = g.type === "income" ? "green" : g.type === "expense" ? "red" : undefined;
       return {
         id: `${g.date}__${g.accId}`,
-        title,
+        title: `${g.accAlias}: ${g.sum.toLocaleString("es-ES", { minimumFractionDigits: 2 })}€`,
         start: g.date,
         allDay: true,
-        backgroundColor: g.accColor, // <-- usa el color de la cuenta
+        backgroundColor: g.accColor,
         borderColor: g.accColor,
         textColor: '#fff',
-        extendedProps: { accountColor: g.accColor },
+        extendedProps: {
+          group: true,              // 👈 marca de agrupado
+          accAlias: g.accAlias,     // 👈 alias de la cuenta
+          sum: g.sum,               // 👈 total del día para esa cuenta
+          accountColor: g.accColor,
+        },
       };
     });
   }
@@ -289,64 +303,186 @@ export function CalendarPage() {
     }
   };
 
+  // Render personalizado del contenido del evento
+  function renderEventContent(arg) {
+    const ev = arg.event;
+    const xp = ev.extendedProps || {};
+
+      // === Eventos agrupados (filtro "Todas") ===
+    if (xp.group) {
+      const alias = xp.accAlias || 'Cuenta';
+      const total = Number(xp.sum || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
+      return (
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 2, justifyContent: 'space-between', alignItems: 'center', padding: '0 8px 0 2px' }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>{alias}</div>
+          <div style={{ fontSize: 15, fontWeight: 550 }}>{total}€</div>
+        </div>
+      );
+    }
+
+
+    const prov = xp?.counterparty?.name || xp?.accountAlias || '—';
+    const amount = Number(xp?.amount || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
+    const ui = xp?.uiStatus; // 'pending' | 'overdue' | 'paid'
+
+    const badgeStyle = {
+      fontSize: 10, padding: '2px 6px', 
+      borderRadius: 6, 
+      marginLeft: 6,
+      background: ui === 'paid' ? '#9ca3af' : ui === 'overdue' ? '#f59e0b' : 'rgba(255,255,255,.25)',
+      color: '#fff'
+    };
+
+    const onTogglePaid = async (e) => {
+      e.stopPropagation(); // no abrir modal/selección del día
+      const id = ev.id || xp.cashflowId;
+      if (!id) return;
+      const next = ui === 'paid' ? 'pending' : 'paid';
+      try {
+        await setCashflowStatus(id, next); // PUT /cashflows/:id { status: 'paid'|'pending' }
+        
+        await loadAll();
+      } catch (err) {
+        console.error(err);
+        alert('No se pudo actualizar el estado.');
+      }
+    };
+
+    
+
+return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, justifyContent: "space-between", padding: "0 2px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "space-between" }}>
+          <input
+            type="checkbox"
+            checked={ui === "paid"}
+            onChange={onTogglePaid}
+            onClick={(e) => e.stopPropagation()}
+            style={{ cursor: "pointer" }}
+            title={ui === "paid" ? "Marcar como pendiente" : "Marcar como pagado"}
+          />
+          <span style={{ fontWeight: 600 }}>{prov}</span>
+          {ui && <span style={badgeStyle}>
+            {ui === "paid" ? "Pagado" : ui === "overdue" ? "Vencido" : ""}
+          </span>}
+        </div>
+        <div style={{ fontSize: 14, display: "flex", alignItems: "center", justifyContent:"center", fontWeight: 600 }}>{amount}€</div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
-      <div className="card" style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+      <div
+        className="card"
+        style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}
+      >
         <Button
-            bg={buttonBg} color={buttonColor} _hover={{ bg: buttonHover }}
-            onClick={() => { setSelectedDate(null); setOpen(true); }}
-          >
-            + Nuevo vencimiento
-          </Button>
+          bg={buttonBg}
+          color={buttonColor}
+          _hover={{ bg: buttonHover }}
+          onClick={() => {
+            setSelectedDate(null);
+            setOpen(true);
+          }}
+        >
+          + Nuevo vencimiento
+        </Button>
 
-        <label>
+        <label style={{ gap: 10, display: "flex", alignItems: "center" }}>
           Cuenta:
-          <select value={filters.accountId} onChange={e => setFilters(f => ({ ...f, accountId: e.target.value }))}>
+          <select
+            value={filters.accountId}
+            onChange={(e) => setFilters((f) => ({ ...f, accountId: e.target.value }))}
+          >
             <option value="">Todas</option>
-            {accountOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {accountOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </label>
 
-        <label>
+        <label style={{ gap: 10, display: "flex", alignItems: "center" }}>
           Categoría:
-          <select value={filters.categoryId} onChange={e => setFilters(f => ({ ...f, categoryId: e.target.value }))}>
+          <select
+            value={filters.categoryId}
+            onChange={(e) => setFilters((f) => ({ ...f, categoryId: e.target.value }))}
+          >
             <option value="">Todas</option>
-            {categoryOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {categoryOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </label>
 
-        <label>
+        <label style={{ gap: 10, display: "flex", alignItems: "center" }}>
           Mes:
-          <select value={filters.month} onChange={e => setFilters(f => ({ ...f, month: e.target.value }))}>
+          <select
+            value={filters.month}
+            onChange={(e) => setFilters((f) => ({ ...f, month: e.target.value }))}
+          >
             <option value="">Todos</option>
-            {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {monthOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </label>
 
-        <label>
+        <label style={{ gap: 10, display: "flex", alignItems: "center" }}>
           Año:
-          <select value={filters.year} onChange={e => setFilters(f => ({ ...f, year: e.target.value }))}>
+          <select
+            value={filters.year}
+            onChange={(e) => setFilters((f) => ({ ...f, year: e.target.value }))}
+          >
             <option value="">Todos</option>
-            {yearOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {yearOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </label>
 
-        <Button bg={buttonBg} color={buttonColor} _hover={{ bg: buttonHover }}
-        className="btn" onClick={() => setFilters({ accountId: "", categoryId: "", month: "", year: "" })}>
+        <Button
+          bg={buttonBg}
+          color={buttonColor}
+          _hover={{ bg: buttonHover }}
+          className="btn"
+          onClick={() =>
+            setFilters({ accountId: "", categoryId: "", month: "", year: "" })
+          }
+        >
           Limpiar filtros
         </Button>
       </div>
 
       <div className="card">
         {accounts.length > 0 && (
-          <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div
+            className="card"
+            style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", width: "100%", padding: "2px 0 2px 0" }}
+          >
             <strong>Leyenda cuentas:</strong>
-            {accounts.map(a => (
-              <span key={a._id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <span style={{
-                  width: 12, height: 12, borderRadius: 3,
-                  background: a.color || '#999', border: '1px solid #ddd'
-                }} />
+            {accounts.map((a) => (
+              <span
+                key={a._id}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                <span
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 3,
+                    background: a.color || "#999",
+                    border: "1px solid #ddd",
+                  }}
+                />
                 <span>{a.alias}</span>
               </span>
             ))}
@@ -358,12 +494,17 @@ export function CalendarPage() {
           initialView="dayGridMonth"
           locale={esLocale}
           events={events}
+          eventContent={renderEventContent}
           eventClick={onEventClick}
-          dateClick={(info) => { setSelectedDate(info.dateStr); setOpen(true); }}
+          dateClick={(info) => {
+            setSelectedDate(info.dateStr);
+            setOpen(true);
+          }}
           height="auto"
           expandRows={true}
           dayMaxEvents={false}
           eventDisplay="block"
+          eventTextColor="#fff"   // ← asegurar contraste
         />
       </div>
 
@@ -379,6 +520,4 @@ export function CalendarPage() {
     </div>
   );
 }
-
-
 
