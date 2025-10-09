@@ -44,6 +44,7 @@ export function CalendarPage() {
     categoryId: "",
     month: "",
     year: "",
+    status: "",   // 👈 NUEVO: filtro por estado uiStatus ('pending'|'overdue'|'paid')
   });
 
 
@@ -109,6 +110,7 @@ export function CalendarPage() {
         const amount = getAmount(e);
         
         const backendColor = e.color || e.extendedProps?.color || undefined; // ⟵ color backend
+        const uiStatus = e.extendedProps?.uiStatus;     // ⟵ 'pending' | 'overdue' | 'paid'
         
 
         const accountColor =
@@ -116,7 +118,6 @@ export function CalendarPage() {
         e.extendedProps?.account?.color ??
         undefined;
 
-        const uiStatus = e.extendedProps?.uiStatus;     // ⟵ 'pending' | 'overdue' | 'paid'
 
         return {
           ...e,
@@ -160,6 +161,9 @@ export function CalendarPage() {
     if (f.month) list = list.filter(e => (new Date(e.start + "T00:00:00Z").getUTCMonth() + 1) === Number(f.month));
     if (f.year) list = list.filter(e => new Date(e.start + "T00:00:00Z").getUTCFullYear() === Number(f.year));
 
+    // 👇 NUEVO: filtro por estado (pending | overdue | paid)
+    if (f.status) {list = list.filter(e => (e._uiStatus || e.extendedProps?.uiStatus) === f.status);}
+
     // Cuenta específica ⇒ eventos individuales
     if (f.accountId) {
       return list.map((e) => {
@@ -197,6 +201,7 @@ export function CalendarPage() {
           accId,
           accAlias: e._accountAlias || (accId !== "NA" ? `Cuenta ${accId}` : "Sin cuenta"),
           sum: e._amount,
+          type: e._type,
           accColor,
         });
       } else {
@@ -307,6 +312,7 @@ export function CalendarPage() {
   function renderEventContent(arg) {
     const ev = arg.event;
     const xp = ev.extendedProps || {};
+    
 
       // === Eventos agrupados (filtro "Todas") ===
     if (xp.group) {
@@ -447,6 +453,19 @@ return (
               </option>
             ))}
           </select>
+        </label>
+
+        <label style={{ gap: 10, display: "flex", alignItems: "center" }}>
+          Estado:
+            <select
+              value={filters.status}
+              onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
+            >
+              <option value="">Todos</option>
+              <option value="pending">Pendiente</option>
+              <option value="overdue">Vencido</option>
+              <option value="paid">Pagado</option>
+            </select>
         </label>
 
         <Button
