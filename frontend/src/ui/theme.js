@@ -1,45 +1,5 @@
 import { extendTheme } from "@chakra-ui/react";
 
-/*const colors = {
-  brand: {
-    50: "#e6f7ff",
-    100: "#b3e5ff",
-    200: "#80d4ff",
-    300: "#4dc2ff",
-    400: "#1ab0ff",
-    500: "#0099e6", // azul principal
-    600: "#0073b4",
-    700: "#004d82",
-    800: "#002851",
-    900: "#001220",
-  },
-  accent: {
-    50: "#e6fff5",
-    100: "#b3ffe0",
-    200: "#80ffcc",
-    300: "#4dffb8",
-    400: "#1affa3",
-    500: "#00e68f", // verde llamativo
-    600: "#00b374",
-    700: "#00805a",
-    800: "#00503f",
-    900: "#00251f",
-  },
-  neutral: {
-    50: "#f5f5f5",
-    100: "#e0e0e0",
-    200: "#c2c2c2",
-    300: "#a3a3a3",
-    400: "#858585",
-    500: "#666666",
-    600: "#4d4d4d",
-    700: "#333333",
-    800: "#1a1a1a",
-    900: "#0a0a0a",
-  },
-};
-*/
-
 const colors = {
   brand: { // Verde oliva
     50: "#f0f3e6",
@@ -90,7 +50,7 @@ const config = {
 
 
 // Extender el tema
-const theme = extendTheme({
+/*const theme = extendTheme({
   config,
   colors,
   styles: {
@@ -105,6 +65,101 @@ const theme = extendTheme({
         color: props.colorMode === "light" ? "brand.500" : "accent.500",
       },
     }),
+  },
+});
+*/
+
+// theme.js
+const theme = extendTheme({
+  config,
+  colors,
+  styles: {
+    global: (props) => {
+      const isLight = props.colorMode === 'light';
+
+      return {
+        body: {
+          bg: isLight ? "neutral.50" : "accent.500",
+          color: isLight ? "neutral.800" : "neutral.100",
+          minHeight: "100vh",
+          fontFamily: "'Inter', sans-serif",
+        },
+        a: {
+          color: isLight ? "brand.500" : "accent.500",
+        },
+
+        /* ===== FullCalendar (colores base vía variables) ===== */
+        '.fc': {
+          '--fc-text-color': isLight ? 'var(--chakra-colors-neutral-900)' : 'var(--chakra-colors-neutral-100)',
+          '--fc-neutral-text-color': isLight ? 'var(--chakra-colors-neutral-900)' : 'var(--chakra-colors-neutral-100)',
+          '--fc-button-text-color': isLight ? 'var(--chakra-colors-neutral-900)' : 'var(--chakra-colors-neutral-100)',
+          '--fc-border-color': isLight ? 'var(--chakra-colors-neutral-200)' : 'var(--chakra-colors-neutral-700)',
+          '--fc-today-bg-color': isLight ? 'var(--chakra-colors-accent-50)' : 'var(--chakra-colors-neutral-800)',
+          '--fc-page-bg-color': 'transparent',
+        },
+
+        /* ===== Título del mes ===== */
+        /*'.fc .fc-toolbar-title': {
+          textTransform: 'capitalize',
+          color: isLight ? 'var(--chakra-colors-neutral-900)' : 'var(--chakra-colors-neutral-100)',
+          fontWeight: 700,
+      
+        },*/
+
+        
+
+        /* ===== Encabezados de días (Lun, Mar, ...) ===== */
+        '.fc .fc-col-header-cell-cushion': {
+          textTransform: 'capitalize',
+          color: isLight ? 'var(--chakra-colors-neutral-800)' : 'var(--chakra-colors-neutral-100)',
+          fontWeight: 600,
+        },
+
+        /* ===== Número del día ===== */
+        /* ¡Ojo! Es un <a>, mejor forzar color heredado y evitar azul por defecto */
+        '.fc .fc-daygrid-day-number': {
+          color: isLight ? 'var(--chakra-colors-neutral-900)' : 'var(--chakra-colors-neutral-100)',
+          textDecoration: 'none',
+          fontWeight: 600,
+        },
+        '.fc .fc-daygrid-day-number:hover': {
+          color: isLight ? 'var(--chakra-colors-neutral-900)' : 'var(--chakra-colors-neutral-100)',
+        },
+        // Para heredar color en todos los enlaces internos del calendario:
+        '.fc a, .fc a:hover, .fc a:visited': {
+          color: 'inherit',
+        },
+
+        /* ===== Botones de la toolbar ===== */
+        '.fc .fc-toolbar .fc-button': {
+          color: isLight ? 'var(--chakra-colors-neutral-900)' : 'var(--chakra-colors-neutral-100)',
+          background: 'transparent',
+          borderColor: 'transparent',
+        },
+        '.fc .fc-toolbar .fc-button:hover': {
+          background: isLight ? 'var(--chakra-colors-neutral-100)' : 'var(--chakra-colors-neutral-700)',
+        },
+
+        /* ===== Día de hoy ===== */
+        '.fc .fc-daygrid-day.fc-day-today': {
+          backgroundColor: isLight ? 'var(--chakra-colors-accent-50)' : 'var(--chakra-colors-neutral-800)',
+        },
+
+        /* ===== Apariencia de los eventos (opcional) ===== */
+        '.fc .fc-daygrid-event': {
+          padding: '2px 6px',
+          borderRadius: '6px',
+          borderWidth: '1px',
+          fontSize: '12px',
+          lineHeight: '1.2',
+        },
+        '.fc .fc-daygrid-event .fc-event-title': {
+          whiteSpace: 'normal',
+        },
+
+        
+      };
+    },
   },
 });
 

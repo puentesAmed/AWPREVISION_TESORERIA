@@ -19,6 +19,8 @@ import { getAccounts } from '@/api/accountsService.js';
 import { setCashflowStatus } from '@/api/cashflowsService.js';
 
 
+
+
 export function CalendarPage() {
   const ref = useRef(null);
 
@@ -47,7 +49,15 @@ export function CalendarPage() {
     status: "",   // 👈 NUEVO: filtro por estado uiStatus ('pending'|'overdue'|'paid')
   });
 
+  const [calTitle, setCalTitle] = React.useState('');
 
+/*// Función que calcula "Octubre 2025"
+function computeTitle({ start }) {
+  const d = start instanceof Date ? start : new Date(start);
+  if (isNaN(d)) return '';
+  const month = d.toLocaleString('es-ES', { month: 'long' });
+  return `${month.charAt(0).toUpperCase() + month.slice(1)} ${d.getFullYear()}`;
+} */
 
   // ---- helpers fecha ----
   const toISODate = (v) => {
@@ -141,6 +151,7 @@ export function CalendarPage() {
             counterparty: e.counterparty ?? e.extendedProps?.counterparty ?? null,
             accountColor,
             uiStatus,
+            group: false,  // ⟵ marca de evento individual no agrupado
           },
         };
       }).filter(e => !!e.start);
@@ -221,9 +232,11 @@ export function CalendarPage() {
         textColor: '#fff',
         extendedProps: {
           group: true,              // 👈 marca de agrupado
+          accId: g.accId,         // 👈 id de la cuenta
           accAlias: g.accAlias,     // 👈 alias de la cuenta
           sum: g.sum,               // 👈 total del día para esa cuenta
           accountColor: g.accColor,
+          dateYMD: g.date,         // 👈 fecha (YYYY-MM-DD) para navegación
         },
       };
     });
@@ -289,7 +302,7 @@ export function CalendarPage() {
     }
   }, [filters.month, filters.year]);
 
-  // ---- eliminar evento ----
+ /* // ---- eliminar evento ----
   const onEventClick = async (info) => {
     try {
       const evx = info.event.extendedProps || {};
@@ -306,15 +319,66 @@ export function CalendarPage() {
       console.error(e);
       alert("No se pudo eliminar. Revisa la consola.");
     }
+  };*/
+
+  // ---- click evento: si agrupado => "redirigir" (filtrar por cuenta + ir a la fecha); si individual => eliminar ----
+  const onEventClick = async (info) => {
+    try {
+      const ev = info.event;
+      const xp = ev.extendedProps || {};
+
+      // Caso AGRUPADO ("Todas"): redirigir a la cuenta y al día para ver el detalle
+      if (xp.group) {
+        const accId = xp.accId;
+        // usamos dateYMD si lo tenemos, si no, ev.startStr
+        const dateStr = xp.dateYMD || (ev.startStr ? ev.startStr.slice(0, 10) : undefined);
+        if (accId) {
+          setFilters((f) => ({
+            ...f,
+            accountId: accId,
+          }));
+        }
+        const apiCal = ref.current?.getApi();
+        if (apiCal && dateStr) {
+          // esperamos al render del nuevo feed
+          requestAnimationFrame(() => apiCal.gotoDate(dateStr));
+        }
+        return;
+      }
+
+      // Caso INDIVIDUAL: eliminar (como ya lo tenías)
+      const evx = xp;
+      const id = ev.id || evx.cashflowId || evx.id || evx._id;
+      if (!id) return;
+
+      const nombre = evx?.counterparty?.name || evx?.accountAlias || "—";
+      const ok = confirm(`¿Eliminar vencimiento de ${nombre} por ${Number(evx?.amount || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 })}€?`);
+      if (!ok) return;
+
+      await api.delete(`/cashflows/${id}`);
+      loadAll();
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo procesar la acción. Revisa la consola.");
+    }
   };
 
+  // ---- mejor UX al pasar por eventos agrupados ----
+  const eventDidMount = (info) => {
+    const xp = info.event.extendedProps || {};
+    if (xp.group) {
+      info.el.style.cursor = "pointer";
+      info.el.title = `Ver detalle de ${xp.accAlias} en ${xp.dateYMD}`;
+    }
+  };
   // Render personalizado del contenido del evento
   function renderEventContent(arg) {
     const ev = arg.event;
     const xp = ev.extendedProps || {};
+    const isGroup = xp.group === true;
     
 
-      // === Eventos agrupados (filtro "Todas") ===
+    /*  // === Eventos agrupados (filtro "Todas") ===
     if (xp.group) {
       const alias = xp.accAlias || 'Cuenta';
       const total = Number(xp.sum || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
@@ -324,9 +388,20 @@ export function CalendarPage() {
           <div style={{ fontSize: 15, fontWeight: 550 }}>{total}€</div>
         </div>
       );
+    }*/
+
+    // AGRUPADO: mostrar alias + suma + hint
+    if (isGroup) {
+      const sumTxt = Number(xp.sum || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
+      return (
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 2, justifyContent: 'space-between', alignItems: 'center', padding: '0 2px 0 2px' }}>
+          <div style={{ fontWeight: 700 }}>{xp.accAlias || 'Cuenta'}</div>
+          <div style={{ fontSize: 15, fontWeight: 550 }}>{sumTxt}€</div>
+        </div>
+      );
     }
 
-
+    // INDIVIDUAL: proveedor + importe + badge estado + checkbox
     const prov = xp?.counterparty?.name || xp?.accountAlias || '—';
     const amount = Number(xp?.amount || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
     const ui = xp?.uiStatus; // 'pending' | 'overdue' | 'paid'
@@ -353,6 +428,7 @@ export function CalendarPage() {
         alert('No se pudo actualizar el estado.');
       }
     };
+
 
     
 
@@ -507,6 +583,17 @@ return (
             ))}
           </div>
         )}
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom:0
+        }}>
+          <h2 style={{ marginTop: 8, fontSize: 24, fontWeight: 800 }}>{calTitle}</h2>
+          
+        </div>
+
         <FullCalendar
           ref={ref}
           plugins={[dayGridPlugin, interactionPlugin]}
@@ -514,16 +601,30 @@ return (
           locale={esLocale}
           events={events}
           eventContent={renderEventContent}
+          eventDidMount={eventDidMount}          // 👈 asegura clic y cursor en agrupados
           eventClick={onEventClick}
           dateClick={(info) => {
             setSelectedDate(info.dateStr);
             setOpen(true);
           }}
+          headerToolbar={{ left: '', center: '', right: 'prev,next today' }}
+          datesSet={(arg) => {
+            // arg.start y arg.end son Date
+            const start = arg.start instanceof Date ? arg.start : new Date(arg.start);
+            const end   = arg.end   instanceof Date ? arg.end   : new Date(arg.end);
+
+            // fecha central del rango visible para asegurar el mes correcto
+            const mid = new Date((start.getTime() + end.getTime()) / 2);
+
+            const month = mid.toLocaleString('es-ES', { month: 'long' });
+            const cap   = month.charAt(0).toUpperCase() + month.slice(1);
+            setCalTitle(`${cap} ${mid.getFullYear()}`);
+          }}
           height="auto"
           expandRows={true}
           dayMaxEvents={false}
           eventDisplay="block"
-          eventTextColor="#fff"   // ← asegurar contraste
+          
         />
       </div>
 

@@ -210,38 +210,7 @@ export const calendar = async (req, res) => {
       .populate({ path: 'category', select: 'name' })
       .lean();
 
-    /*const events = items.map((i) => {
-      const ymd = toYMD(new Date(i.date)); 
-      const amountTxt = Number(i.amount).toLocaleString('es-ES', { minimumFractionDigits: 2 });
-      const title = `${i.counterparty?.name ?? '—'} · ${amountTxt}€${i.category?.name ? ` · ${i.category.name}` : ''}`;
-
-      
-     // 1) gris si cancelado
-    // 2) si no, usa color de la cuenta
-    // 3) fallback por tipo si la cuenta no tiene color
-    const fallback = i.type === 'out' ? '#ef4444' : '#10b981';
-    const base = i.account?.color || fallback;
-    const accColor = i.account?.color;
     
-
-      return {
-        id: String(i._id),
-        title,
-        start: ymd,
-        allDay: true,
-        color: accColor || fallback,
-        extendedProps: {
-          cashflowId: String(i._id),
-          amount: i.amount,
-          type: i.type,
-          status: i.status,
-          account: i.account,       // <-- trae alias y color
-          category: i.category,
-          counterparty: i.counterparty,
-          dateYMD: ymd,
-        },
-      };
-    });*/
 
     const events = items.map((i) => {
       const ymd = toYMD(new Date(i.date));
@@ -543,6 +512,97 @@ export const importCashflows = async (req, res) => {
     }
 
     res.json({ created, errorsCount: errors.length, errors });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+
+// ==== REPORTES ====
+
+/**
+ * GET /api/cashflows/reports/overdue
+ * Lista de vencimientos con status 'pending' y fecha < hoy (UTC midnight)
+ * Query: ?account=ACCOUNT_ID (opcional)
+ */
+export const overdueReport = async (req, res) => {
+  try {
+    const now = new Date();
+    const todayUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+
+    const q = { status: 'pending', date: { $lt: todayUtcMidnight } };
+    if (req.query.account) q.account = req.query.account;
+
+    const items = await Cashflow.find(q)
+      .populate({ path: 'account', select: 'alias color' })
+      .populate({ path: 'counterparty', select: 'name' })
+      .populate({ path: 'category', select: 'name' })
+      .sort({ date: 1 })
+      .lean();
+
+    const total = items.reduce((acc, i) => acc + (typeof i.amount === 'number' ? Math.abs(i.amount) : 0), 0);
+
+    res.json({ rows: items, total });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+/**
+ * GET /api/cashflows/reports/pending-totals-by-account-month
+ * Totales 'pending' por cuenta y mes del año indicado.
+ * Query: ?year=2025 (opcional; por defecto, año actual)
+ */
+export const pendingTotalsByAccountMonth = async (req, res) => {
+  try {
+    const year = Number(req.query.year) || (new Date()).getFullYear();
+
+    const from = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
+    const to   = new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0, 0));
+
+    const rows = await Cashflow.aggregate([
+      { $match: { status: 'pending', date: { $gte: from, $lt: to } } },
+      {
+        $group: {
+          _id: {
+            acc: '$account',
+            y: { $year: '$date' },
+            m: { $month: '$date' }
+          },
+          total: {
+            $sum: {
+              $cond: [
+                { $lt: ['$amount', 0] },
+                { $abs: '$amount' },
+                '$amount'
+              ]
+            }
+          }
+        }
+      },
+      { $sort: { '_id.acc': 1, '_id.y': 1, '_id.m': 1 } },
+      {
+        $lookup: {
+          from: 'accounts',
+          localField: '_id.acc',
+          foreignField: '_id',
+          as: 'account'
+        }
+      },
+      { $unwind: { path: '$account', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          accountId: '$_id.acc',
+          year: '$_id.y',
+          month: '$_id.m',
+          total: 1,
+          accountAlias: '$account.alias',
+          accountColor: '$account.color'
+        }
+      }
+    ]);
+
+    res.json({ year, rows });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

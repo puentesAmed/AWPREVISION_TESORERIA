@@ -130,3 +130,14 @@ dr
   line-height: 1.2;
   font-size: 0.9rem;
 }
+
+
+
+
+/*/* Asegura que el título se vea *//*
+.fc-toolbar-title {
+  display: block !important;
+  color: #111 !important; 
+}*/
+
+
