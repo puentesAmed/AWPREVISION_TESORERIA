@@ -223,7 +223,7 @@ export function TotalsPage() {
   };
 
   return (
-    <div className="page">
+    <div className="page" >
       <div className="card controls">
         <input className="input" type="date" value={from} onChange={e => setFrom(e.target.value)} />
         <input className="input" type="date" value={to} onChange={e => setTo(e.target.value)} />
