@@ -24,11 +24,19 @@ import { setCashflowStatus } from '@/api/cashflowsService.js';
 export function CalendarPage() {
   const ref = useRef(null);
 
+  const [calKey, setCalKey] = useState(0);
+
   const [allEvents, setAllEvents] = useState([]); // todos los eventos globales
   const [events, setEvents] = useState([]);       // eventos filtrados
   const [open, setOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts });
+
+  // === Totales por día ===
+  const [dayTotals, setDayTotals] = useState(new Map());
+  const SUM_ABSOLUTE = true; // true => suma en valor absoluto; false => respeta signo
+
+  const toYMD = (d) => d.toISOString().slice(0,10);
 
   // Colores dinámicos
   const bgContent = useColorModeValue("neutral.50", "neutral.900");
@@ -40,6 +48,10 @@ export function CalendarPage() {
   const buttonColor = useColorModeValue("white", "black");
   const buttonHover = useColorModeValue("brand.600", "accent.600");
   const bgCard = useColorModeValue("neutral.100", "neutral.800");
+  const totalBg = useColorModeValue('rgba(255,255,255,0.85)', 'rgba(17,24,39,0.55)');
+  const totalColor = useColorModeValue('#111', '#f3f4f6');
+  const dayTotalBg = useColorModeValue('rgba(255,255,255,0.85)', 'rgba(17,24,39,0.55)');
+  const dayTotalColor = useColorModeValue('#111', '#f3f4f6');
 
   const [filters, setFilters] = useState({
     accountId: "",
@@ -51,13 +63,6 @@ export function CalendarPage() {
 
   const [calTitle, setCalTitle] = React.useState('');
 
-/*// Función que calcula "Octubre 2025"
-function computeTitle({ start }) {
-  const d = start instanceof Date ? start : new Date(start);
-  if (isNaN(d)) return '';
-  const month = d.toLocaleString('es-ES', { month: 'long' });
-  return `${month.charAt(0).toUpperCase() + month.slice(1)} ${d.getFullYear()}`;
-} */
 
   // ---- helpers fecha ----
   const toISODate = (v) => {
@@ -158,10 +163,22 @@ function computeTitle({ start }) {
 
       setAllEvents(normalized);
       setEvents(projectForCalendar(normalized, filters));
+      
+
     } catch (err) {
       console.error(err);
       alert("No se pudo cargar el calendario global");
     }
+  }
+
+  // Filtra base sin agrupar: se usa para calcular totales
+  function filterBaseForTotals(source, f) {
+    let list = source;
+    if (f.accountId) list = list.filter(e => e._accountId === f.accountId);
+    if (f.categoryId) list = list.filter(e => e._categoryId === f.categoryId);
+    if (f.month) list = list.filter(e => (new Date(e.start + 'T00:00:00Z').getUTCMonth() + 1) === Number(f.month));
+    if (f.year)  list = list.filter(e => new Date(e.start + 'T00:00:00Z').getUTCFullYear() === Number(f.year));
+    return list;
   }
 
   // ---- proyección para pintar ----
@@ -281,8 +298,60 @@ function computeTitle({ start }) {
     }), []);
 
   // ---- efectos ----
+  // === Refresco visual inmediato cuando cambian los totales ===
+  useEffect(() => {
+    const cal = ref.current?.getApi();
+    if (!cal) return;
+
+    queueMicrotask(() => {
+      console.log("🔄 Refrescando calendario (updateSize)");
+      cal.updateSize();
+    });
+  }, [dayTotals]);
+  
   useEffect(() => { loadAll(); }, []);
   useEffect(() => { setEvents(projectForCalendar(allEvents, filters)); }, [filters, allEvents]);
+
+  // === Calcular totales por día (con logs) ===
+  useEffect(() => {
+    const map = new Map();
+    const list = filterBaseForTotals(allEvents, filters);
+
+    for (const e of list) {
+      const ymd = e.start; // YYYY-MM-DD
+      const amtRaw = Number(e._amount ?? e.extendedProps?.amount ?? 0) || 0;
+      const amt = SUM_ABSOLUTE ? Math.abs(amtRaw) : amtRaw;
+      if (!ymd || !amt) continue;
+      map.set(ymd, (map.get(ymd) || 0) + amt);
+    }
+
+    console.groupCollapsed("🧮 Totales calculados");
+    for (const [k, v] of map.entries()) {
+      console.log("→", k, "=", v);
+    }
+    console.groupEnd();
+
+    setDayTotals(map);
+  }, [allEvents, filters]);
+  
+  // 👇 Forzar repaint de las celdas cuando cambian los totales
+  useEffect(() => {
+    console.log("🔁 Re-render de FullCalendar (key) tras actualizar dayTotals");
+    setCalKey(k => k + 1); // fuerza que React remonte el calendario
+  }, [dayTotals]);
+
+
+  /*// === Forzar refresco visual cuando cambian los totales ===
+  useEffect(() => {
+    const cal = ref.current?.getApi();
+    if (!cal) return;
+
+    // Esperamos un microtick para que FullCalendar tenga sus celdas listas
+    queueMicrotask(() => {
+      cal.updateSize(); // 🔄 fuerza re-render del grid sin desmontar nada
+    });
+  }, [dayTotals]);*/
+
 
     // Mover el calendario cuando cambian Mes/Año del filtro
   useEffect(() => {
@@ -302,24 +371,7 @@ function computeTitle({ start }) {
     }
   }, [filters.month, filters.year]);
 
- /* // ---- eliminar evento ----
-  const onEventClick = async (info) => {
-    try {
-      const evx = info.event.extendedProps || {};
-      const id = info.event.id || evx.cashflowId || evx.id || evx._id;
-      if (!id) return;
 
-      const nombre = evx?.counterparty?.name || evx?.accountAlias || "—";
-      const ok = confirm(`¿Eliminar vencimiento de ${nombre} por ${Number(evx?.amount || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 })}€?`);
-      if (!ok) return;
-
-      await api.delete(`/cashflows/${id}`);
-      loadAll();
-    } catch (e) {
-      console.error(e);
-      alert("No se pudo eliminar. Revisa la consola.");
-    }
-  };*/
 
   // ---- click evento: si agrupado => "redirigir" (filtrar por cuenta + ir a la fecha); si individual => eliminar ----
   const onEventClick = async (info) => {
@@ -363,6 +415,63 @@ function computeTitle({ start }) {
     }
   };
 
+    
+  const dayCellDidMount = React.useCallback(
+    (info) => {
+      // ⚠️ Tomamos la fecha local directa (no UTC)
+      const localYMD = [
+        info.date.getFullYear(),
+        String(info.date.getMonth() + 1).padStart(2, "0"),
+        String(info.date.getDate()).padStart(2, "0"),
+      ].join("-");
+
+      const total = dayTotals.get(localYMD);
+
+      console.log("📅 Pintando celda:", localYMD, "→ total:", total);
+
+      // elimina anteriores si existen
+      const prev = info.el.querySelector(".fc-day-total");
+      if (prev) prev.remove();
+
+      if (!total) return;
+
+      // crea el nodo
+      const node = document.createElement("div");
+      node.className = "fc-day-total";
+      node.textContent = `Total: ${total.toLocaleString("es-ES", {
+        minimumFractionDigits: 2,
+      })}€`;
+
+      Object.assign(node.style, {
+        position: 'absolute',
+        left: '6px',
+        bottom: '6px',
+        fontSize: '14px',
+        fontWeight: '600',
+        lineHeight: '1',
+        padding: '2px 6px',
+        borderRadius: '4px',
+        pointerEvents: 'none',
+        zIndex: 6,
+        // usar variables de Chakra si existen en :root; fallback a negro/blanco
+        
+        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+        whiteSpace: 'nowrap',
+      });
+
+      if (getComputedStyle(info.el).position === "static") {
+        info.el.style.position = "relative";
+      }
+
+      info.el.appendChild(node);
+    },
+    [dayTotals]
+  );
+
+
+
+
+
   // ---- mejor UX al pasar por eventos agrupados ----
   const eventDidMount = (info) => {
     const xp = info.event.extendedProps || {};
@@ -371,25 +480,15 @@ function computeTitle({ start }) {
       info.el.title = `Ver detalle de ${xp.accAlias} en ${xp.dateYMD}`;
     }
   };
+
+
   // Render personalizado del contenido del evento
   function renderEventContent(arg) {
     const ev = arg.event;
     const xp = ev.extendedProps || {};
     const isGroup = xp.group === true;
     
-
-    /*  // === Eventos agrupados (filtro "Todas") ===
-    if (xp.group) {
-      const alias = xp.accAlias || 'Cuenta';
-      const total = Number(xp.sum || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
-      return (
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 2, justifyContent: 'space-between', alignItems: 'center', padding: '0 8px 0 2px' }}>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>{alias}</div>
-          <div style={{ fontSize: 15, fontWeight: 550 }}>{total}€</div>
-        </div>
-      );
-    }*/
-
+ 
     // AGRUPADO: mostrar alias + suma + hint
     if (isGroup) {
       const sumTxt = Number(xp.sum || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
@@ -595,37 +694,33 @@ return (
         </div>
 
         <FullCalendar
+          key={calKey}        // 👈 fuerza remonte controlado
           ref={ref}
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           locale={esLocale}
           events={events}
           eventContent={renderEventContent}
-          eventDidMount={eventDidMount}          // 👈 asegura clic y cursor en agrupados
+          eventDidMount={eventDidMount}
           eventClick={onEventClick}
+          dayCellDidMount={dayCellDidMount}
           dateClick={(info) => {
             setSelectedDate(info.dateStr);
             setOpen(true);
           }}
           headerToolbar={{ left: '', center: '', right: 'prev,next today' }}
           datesSet={(arg) => {
-            // arg.start y arg.end son Date
-            const start = arg.start instanceof Date ? arg.start : new Date(arg.start);
-            const end   = arg.end   instanceof Date ? arg.end   : new Date(arg.end);
-
-            // fecha central del rango visible para asegurar el mes correcto
-            const mid = new Date((start.getTime() + end.getTime()) / 2);
-
+            const mid = new Date((arg.start.getTime() + arg.end.getTime()) / 2);
             const month = mid.toLocaleString('es-ES', { month: 'long' });
-            const cap   = month.charAt(0).toUpperCase() + month.slice(1);
-            setCalTitle(`${cap} ${mid.getFullYear()}`);
+            setCalTitle(`${month.charAt(0).toUpperCase() + month.slice(1)} ${mid.getFullYear()}`);
           }}
           height="auto"
-          expandRows={true}
-          dayMaxEvents={false}
-          eventDisplay="block"
-          
+          expandRows={true}         // 👈 fuerza que las filas se expandan
+          dayMaxEventRows={false}   // 👈 evita el límite de altura
+          dayMaxEvents={false}      // 👈 evita el botón "+X más"
+          fixedWeekCount={false}    // 👈 evita semanas vacías
         />
+
       </div>
 
       {open && (

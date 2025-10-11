@@ -1,4 +1,4 @@
-import { extendTheme } from "@chakra-ui/react";
+import { background, extendTheme } from "@chakra-ui/react";
 
 const colors = {
   brand: { // Verde oliva
@@ -46,29 +46,6 @@ const config = {
   useSystemColorMode: false,
 };
 
-
-
-
-// Extender el tema
-/*const theme = extendTheme({
-  config,
-  colors,
-  styles: {
-    global: (props) => ({
-      body: {
-        bg: props.colorMode === "light" ? "neutral.50" : "accent.500",
-        color: props.colorMode === "light" ? "neutral.800" : "neutral.100",
-        minHeight: "100vh",
-        fontFamily: "'Inter', sans-serif",
-      },
-      a: {
-        color: props.colorMode === "light" ? "brand.500" : "accent.500",
-      },
-    }),
-  },
-});
-*/
-
 // theme.js
 const theme = extendTheme({
   config,
@@ -98,15 +75,7 @@ const theme = extendTheme({
           '--fc-page-bg-color': 'transparent',
         },
 
-        /* ===== Título del mes ===== */
-        /*'.fc .fc-toolbar-title': {
-          textTransform: 'capitalize',
-          color: isLight ? 'var(--chakra-colors-neutral-900)' : 'var(--chakra-colors-neutral-100)',
-          fontWeight: 700,
-      
-        },*/
-
-        
+              
 
         /* ===== Encabezados de días (Lun, Mar, ...) ===== */
         '.fc .fc-col-header-cell-cushion': {
@@ -155,6 +124,37 @@ const theme = extendTheme({
         },
         '.fc .fc-daygrid-event .fc-event-title': {
           whiteSpace: 'normal',
+        },
+
+        '.fc .fc-daygrid-day-frame': {
+          minHeight: '100px',     // altura base
+          height: 'auto !important', // permite crecer según contenido
+        },
+
+        '.fc-daygrid-day-events': {
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px',
+          // 👇 opcional: si quieres scroll interno
+          // maxHeight: '130px',
+          // overflowY: 'auto',
+          // scrollbarWidth: 'thin',
+          // paddingRight: '2px',
+        },
+
+        '.fc-daygrid-day .fc-day-total': {
+          position: 'relative !important',
+          alignSelf: 'flex-end',
+          marginTop: '4px',
+          fontSize: '11px',
+          fontWeight: '600',
+          color: isLight ? '#111' : '#f3f4f6',
+          //background: isLight ? 'rgba(255,255,255,0.85)' : 'transparent',
+          padding: '2px 5px',
+          borderRadius: '4px',
+          pointerEvents: 'none',
+          textAlign: 'left',
+          
         },
 
         
