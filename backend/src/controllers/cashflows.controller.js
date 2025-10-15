@@ -6,6 +6,8 @@ import dayjs from 'dayjs';
 import mongoose from 'mongoose';
 import xlsx from 'xlsx';
 import { parse as parseCsv } from 'csv-parse/sync';
+import crypto from 'crypto';
+
 
 const isId = v => typeof v === 'string' && mongoose.isValidObjectId(v);
 
@@ -92,6 +94,7 @@ export const monthly = async (req, res, next) => {
     res.json(out);
   } catch (e) { next(e); }
 };
+
 // POST /api/cashflows
 export const createCashflow = async (req, res) => {
   try {
@@ -392,6 +395,31 @@ const parseAmount = (v) => {
   return isNaN(n) ? NaN : n;
 };
 
+// ==== helpers idempotencia ====
+const canon = s => (s??'').toString()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/[\s\-_()\.,"']/g,' ').replace(/\s+/g,' ')
+  .toLowerCase().trim();
+const toUTCYMD = d => {
+  const y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,'0'), day=String(d.getUTCDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+};
+const amtKey = n => Number(Math.abs(n)).toFixed(2);
+const dirBySign = n => (n < 0 ? 'out' : 'in');
+const buildExternalId = ({ dateUTC, amount, accountAlias, categoryName, counterpartyName, concept }) => {
+  const base = [
+    toUTCYMD(dateUTC),
+    dirBySign(amount),
+    amtKey(amount),
+    canon(accountAlias),
+    canon(categoryName),
+    canon(counterpartyName),
+    canon(concept)
+  ].join('|');
+  return crypto.createHash('sha1').update(base).digest('hex');
+};
+
+
 // POST /api/cashflows/import
 export const importCashflows = async (req, res) => {
   try {
@@ -443,7 +471,7 @@ export const importCashflows = async (req, res) => {
     Object.keys(rows[0]).forEach(h => { map[h] = headerMap(h) || h; });
 
     const errors = [];
-    let created = 0;
+    let created = 0, skipped = 0;
 
     for (let i = 0; i < rows.length; i++) {
       const raw = rows[i];
@@ -466,7 +494,7 @@ export const importCashflows = async (req, res) => {
 
       const accountAlias = norm(rec.account);
       if (!accountAlias) { errors.push({ row: i + 2, error: 'ACCOUNT_REQUIRED' }); continue; }
-      const acc = await Account.findOne({ alias: accountAlias }, { _id: 1 }).lean();
+      const acc = await Account.findOne({ alias: accountAlias }, { _id: 1, alias: 1 }).lean();
       if (!acc) { errors.push({ row: i + 2, error: 'ACCOUNT_NOT_FOUND', value: rec.account }); continue; }
 
       let counterpartyId = null;
@@ -498,7 +526,7 @@ export const importCashflows = async (req, res) => {
       const concept = norm(rec.concept);
       const status = ['pending','paid','cancelled'].includes(lc(rec.status)) ? lc(rec.status) : 'pending';
 
-      await Cashflow.create({
+      /*await Cashflow.create({
         date,
         account: acc._id,
         counterparty: counterpartyId,
@@ -509,9 +537,69 @@ export const importCashflows = async (req, res) => {
         status,
       });
       created++;
+      // === clave única canónica para idempotencia ===
+     const externalId = buildExternalId({
+       dateUTC: date,
+        amount,
+        accountAlias: acc.alias,
+        categoryName: rec.category,
+        counterpartyName: rec.counterparty,
+        concept
+      });
+
+      const payload = {
+        date,
+        account: acc._id,
+        counterparty: counterpartyId,
+        amount,
+        type,                // se mantiene, la clave no depende de él
+        category: categoryId,
+        concept,
+        status,
+        source: 'upload',
+        externalId
+      };
+
+      const ret = await Cashflow.updateOne(
+        { externalId },
+        { $setOnInsert: payload },
+        { upsert: true }
+      );
+      if (ret.upsertedCount === 1) created++; else skipped++;*/
+
+       // === clave única canónica para idempotencia ===
+      const externalId = buildExternalId({
+        dateUTC: date,
+        amount,
+        accountAlias: acc.alias,
+        categoryName: rec.category,
+        counterpartyName: rec.counterparty,
+        concept
+      });
+
+      const payload = {
+        date,
+        account: acc._id,
+        counterparty: counterpartyId,
+        amount,
+        type,
+        category: categoryId,
+        concept,
+        status,
+        source: 'upload',
+        externalId
+      };
+
+      const ret = await Cashflow.updateOne(
+        { externalId },
+        { $setOnInsert: payload },
+        { upsert: true }
+      );
+      if (ret.upsertedCount === 1) created++; else skipped++;
+
     }
 
-    res.json({ created, errorsCount: errors.length, errors });
+    res.json({ created, errorsCount: errors.length, errors });   
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
