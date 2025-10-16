@@ -1,168 +1,183 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Box,
   Flex,
   HStack,
   IconButton,
-  Spacer,
-  VStack,
-  Collapse,
   Button,
   Link as ChakraLink,
   useColorMode,
   useDisclosure,
   useColorModeValue,
   Text,
+  Drawer,
+  DrawerOverlay,
+  DrawerContent,
+  DrawerHeader,
+  DrawerBody,
+  VStack,
+  Spacer,
+  Divider,
+  Avatar,
 } from '@chakra-ui/react';
 import { HamburgerIcon, CloseIcon, SunIcon, MoonIcon } from '@chakra-ui/icons';
-import { useAuth } from '../../state/auth.js';
+import { useAuth } from '@/state/auth.js';
+
+
+const PAGES = [
+  { name: 'Calendario', path: '/calendar' },
+  { name: 'Totales',    path: '/totals' },
+  { name: 'Cuentas',    path: '/accounts' },
+  { name: 'Importar',   path: '/import' }, 
+  { name: 'Ajustes',    path: '/settings' },
+  { name: 'Dashboard',  path: '/dashboard' },
+];
+
+function NavItem({ to, children, onClick }) {
+  const activeBg  = useColorModeValue('brand.100', 'neutral.700');
+  const activeCol = useColorModeValue('brand.700', 'neutral.100');
+  const hoverBg   = useColorModeValue('neutral.100', 'neutral.700');
+  const linkCol   = useColorModeValue('neutral.800', 'neutral.100');
+
+  return (
+    <ChakraLink
+      as={NavLink}
+      to={to}
+      onClick={onClick}
+      px={3}
+      py={2}
+      borderRadius="lg"
+      color={linkCol}
+      _hover={{ textDecoration: 'none', bg: hoverBg }}
+      style={({ isActive }) => ({
+        background: isActive ? activeBg : 'transparent',
+        color: isActive ? activeCol : undefined,
+        fontWeight: isActive ? 700 : 500,
+      })}
+    >
+      {children}
+    </ChakraLink>
+  );
+}
 
 export function AppLayout() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
   const { colorMode, toggleColorMode } = useColorMode();
-  const { isOpen, onToggle } = useDisclosure();
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [scrolled, setScrolled] = useState(false);
 
-  const pages = [
-    { name: 'Calendario', path: '/calendar' },
-    { name: 'Totales', path: '/totals' },
-    { name: 'Cuentas', path: '/accounts' },
-    { name: 'Importar', path: '/import' },
-    { name: 'Ajustes', path: '/settings' },
-    { name: 'Escenarios', path: '/scenarios' },
-    { name: 'Dashboard', path: '/dashboard' },
-    { name: 'Flujos', path: '/cashflows' },
-  ];
+  const headerBg = useColorModeValue('rgba(255,255,255,0.85)', 'rgba(17,17,17,0.7)');
+  const border   = useColorModeValue('neutral.200', 'neutral.700');
+  const brandDot = useColorModeValue('brand.500', 'accent.500');
+  const contentBg = useColorModeValue('neutral.50','neutral.900');
+  const contentColor = useColorModeValue('neutral.800','neutral.100');
+  const footerBg = useColorModeValue('brand.100', 'neutral.800');
+  const footerColor = useColorModeValue('neutral.900','neutral.100');
 
-  // Colores dinámicos
-  const bgNavbar = useColorModeValue('brand.100', 'neutral.500');
-  const colorNavbar = useColorModeValue('black', 'white');
-  const linkColor = useColorModeValue('gray.800', 'gray.200');
-  const bgContent = useColorModeValue('neutral.50', 'neutral.900');
-  const textContent = useColorModeValue('neutral.800', 'neutral.100');
-  const bgButton = useColorModeValue('brand.500', 'accent.500');
-  const colorButton = useColorModeValue('white', 'black');
-  const hoverButton = useColorModeValue('brand.600', 'accent.600');
-  const bgMobileMenu = useColorModeValue('brand.100', 'brand.500');
-  const colorMobileMenu = useColorModeValue('black', 'white');
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 6);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   return (
     <Flex direction="column" minH="100vh">
-      {/* Navbar */}
-      <Flex as="header" bg={bgNavbar} color={colorNavbar} p={4} align="center">
-        <Box fontWeight="bold" fontSize="xl">Previsión de Tesorería</Box>
-        <Spacer />
-
-        {/* Desktop Links */}
-        <HStack spacing={4} display={{ base: 'none', md: 'flex' }}>
-          {pages.map(page => (
-            <ChakraLink
-              as={NavLink}
-              key={page.path}
-              to={page.path}
-              color={linkColor}
-              _hover={{ textDecoration: 'underline' }}
-              style={({ isActive }) => ({
-                fontWeight: isActive ? 'bold' : 'normal',
-                textDecoration: isActive ? 'underline' : 'none',
-              })}
-            >
-              {page.name}
-            </ChakraLink>
-          ))}
-          <IconButton
-            aria-label="Toggle Theme"
-            icon={colorMode === 'light' ? <MoonIcon /> : <SunIcon />}
-            onClick={toggleColorMode}
-            size="sm"
-            bg={bgButton}
-            color={colorButton}
-            _hover={{ bg: hoverButton }}
-          />
-        </HStack>
-
-        {/* Mobile Menu Button */}
-        <IconButton
-          display={{ base: 'flex', md: 'none' }}
-          aria-label="Open Menu"
-          icon={isOpen ? <CloseIcon /> : <HamburgerIcon />}
-          onClick={onToggle}
-          ml={2}
-        />
-
-        <Spacer />
-
-        {/* User Info */}
-        <Box>
-          <Text color={linkColor}>{user?.name}</Text>
-          <Button
-            size="sm"
-            ml={2}
-            bg={bgButton}
-            color={colorButton}
-            _hover={{ bg: hoverButton }}
-            onClick={() => { logout(); nav('/login'); }}
-          >
-            Salir
-          </Button>
-        </Box>
-      </Flex>
-
-      {/* Mobile Menu Links */}
-      <Collapse in={isOpen} animateOpacity>
-        <VStack
-          bg={bgMobileMenu}
-          color={colorMobileMenu}
-          display={{ md: 'none' }}
-          spacing={2}
-          p={4}
-        >
-          {pages.map(page => (
-            <ChakraLink
-              as={NavLink}
-              key={page.path}
-              to={page.path}
-              onClick={onToggle}
-              color={linkColor}
-              width="100%"
-              textAlign="center"
-              _hover={{ textDecoration: 'underline' }}
-              style={({ isActive }) => ({
-                fontWeight: isActive ? 'bold' : 'normal',
-                textDecoration: isActive ? 'underline' : 'none',
-              })}
-            >
-              {page.name}
-            </ChakraLink>
-          ))}
-          <Button
-            size="sm"
-            w="full"
-            mt={2}
-            bg={bgButton}
-            color={colorButton}
-            _hover={{ bg: hoverButton }}
-            onClick={toggleColorMode}
-          >
-            {colorMode === 'light' ? 'Oscuro' : 'Claro'}
-          </Button>
-        </VStack>
-      </Collapse>
-
-      {/* Contenido principal */}
+      {/* Header */}
       <Box
-        flex="1"
-        p={6}
-        bg={bgContent}
-        color={textContent}
+        as="header"
+        bg={headerBg}
+        borderBottom="1px solid"
+        borderColor={border}
+        boxShadow={scrolled ? 'sm' : 'none'}
       >
-        <Outlet /> {/* Aquí se renderizan las páginas individuales */}
+        <Flex align="center" px={{ base: 4, md: 6 }} py={2} gap={3}>
+          <IconButton
+            aria-label="Abrir menú"
+            icon={isOpen ? <CloseIcon boxSize={3} /> : <HamburgerIcon boxSize={5} />}
+            display={{ base: 'inline-flex', md: 'none' }}
+            onClick={isOpen ? onClose : onOpen}
+            variant="ghost"
+          />
+          <HStack spacing={3}>
+            <Box w="9" h="9" borderRadius="xl" bg={brandDot} boxShadow="md" />
+            <Box lineHeight="short">
+              <Text fontWeight="bold">Previsión de Tesorería</Text>
+            </Box>
+          </HStack>
+          <HStack spacing={1} ml={6} display={{ base: 'none', md: 'flex' }}>
+            {PAGES.map(p => (
+              <NavItem key={p.path} to={p.path}>
+                {p.name}
+              </NavItem>
+            ))}
+          </HStack>
+          <Spacer />
+          <HStack spacing={2}>
+            <IconButton
+              aria-label="Cambiar tema"
+              onClick={toggleColorMode}
+              icon={colorMode === 'light' ? <MoonIcon /> : <SunIcon />}
+              size="sm"
+              variant="ghost"
+            />
+            <HStack
+              px={2}
+              py={1}
+              borderRadius="lg"
+              border="1px solid"
+              borderColor={border}
+              cursor="pointer"
+              onClick={() => { logout(); nav('/login'); }}
+            >
+              <Avatar size="sm" name={user?.name || 'Usuario'} />
+              <Text display={{ base: 'none', md: 'inline' }} fontSize="sm">
+                Salir
+              </Text>
+            </HStack>
+          </HStack>
+        </Flex>
+        {scrolled && <Divider opacity={0.25} />}
       </Box>
 
-      {/* Footer */}
-      <Box as="footer" bg={bgNavbar} color={colorNavbar} p={4} textAlign="center">
-        © 2025 Milugui
+      {/* Mobile drawer */}
+      <Drawer placement="left" onClose={onClose} isOpen={isOpen}>
+        <DrawerOverlay />
+        <DrawerContent>
+          <DrawerHeader borderBottomWidth="1px">Navegación</DrawerHeader>
+          <DrawerBody>
+            <VStack align="stretch" spacing={1}>
+              {PAGES.map(p => (
+                <NavItem key={p.path} to={p.path} onClick={onClose}>
+                  {p.name}
+                </NavItem>
+              ))}
+              <Button mt={3} size="sm" onClick={toggleColorMode}>
+                {colorMode === 'light' ? 'Oscuro' : 'Claro'}
+              </Button>
+            </VStack>
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Main */}
+      <Box flex="1" px={{ base: 4, md: 6 }} py={6} bg={contentBg} color={contentColor}>
+        <Outlet />
+      </Box>
+
+      
+      <Box
+        as="footer"
+        bg={footerBg}
+        color={footerColor}
+        py={4}
+        textAlign="center"
+        borderTop="1px solid"
+        borderColor={border}
+      >
+        © {new Date().getFullYear()} Milugui
       </Box>
     </Flex>
   );

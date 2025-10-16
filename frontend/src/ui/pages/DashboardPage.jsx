@@ -1,7 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  SimpleGrid, Box, Text, useColorModeValue, HStack, Icon, Spinner,
-  Select, Button, Flex
+  SimpleGrid,
+  Box,
+  Text,
+  useColorModeValue,
+  HStack,
+  Icon,
+  Spinner,
+  Select,
+  Button,
+  Flex,
+  Divider,
 } from '@chakra-ui/react';
 import { FiTrendingUp, FiTrendingDown, FiDollarSign } from 'react-icons/fi';
 import {
@@ -20,7 +29,6 @@ const mapFilters = (f = {}) => {
   return out;
 };
 
-// Rango temporal para /cashflows (fallback)
 const buildRange = (f = {}) => {
   const y = Number(f.year);
   const m = Number(f.month);
@@ -34,12 +42,11 @@ const buildRange = (f = {}) => {
     const end   = new Date(Date.UTC(y + 1, 0, 1));
     return { start: start.toISOString(), end: end.toISOString() };
   }
-  return {}; // sin rango => backend decide (o trae todo)
+  return {};
 };
 
-// Agrupa cashflows a mensual
 const monthlyFromCashflows = (rows = []) => {
-  const map = new Map(); // key: 'YYYY-MM' -> { month, ingresos, gastos }
+  const map = new Map();
   for (const r of rows) {
     if (!r?.date) continue;
     const d = new Date(r.date);
@@ -53,7 +60,6 @@ const monthlyFromCashflows = (rows = []) => {
   return Array.from(map.values()).sort((a,b) => a.month.localeCompare(b.month));
 };
 
-// Resumen ingresos/gastos desde cashflows
 const summaryFromCashflows = (rows = []) => {
   let ingresos = 0, gastos = 0;
   for (const r of rows) {
@@ -64,8 +70,14 @@ const summaryFromCashflows = (rows = []) => {
 };
 
 export function DashboardPage() {
-  const cardBg = useColorModeValue('white', 'neutral.800');
-  const cardColor = useColorModeValue('black', 'white');
+  // Theme tokens
+  const cardBg     = useColorModeValue('white', 'neutral.800');
+  const pageBg     = useColorModeValue('neutral.50', 'neutral.900');
+  const border     = useColorModeValue('neutral.200', 'neutral.700');
+  const muted      = useColorModeValue('neutral.600', 'neutral.400');
+  const incomeHex  = useColorModeValue('#779400', '#06b6d4'); // brand.500 / accent.500
+  const expenseHex = useColorModeValue('#0e7490', '#a5f3fc'); // accent.700 / accent.200
+  const barHex     = useColorModeValue('#90a72e', '#22d3ee'); // brand.400 / accent.400
 
   const [loading, setLoading] = useState(true);
   const [kpi, setKpi] = useState({ ingresos: 0, gastos: 0, balance: 0 });
@@ -73,19 +85,22 @@ export function DashboardPage() {
   const [barData, setBarData] = useState([]);
   const [pieData, setPieData] = useState([]);
   const [renderKey, setRenderKey] = useState(0);
-  const COLORS = ['#00e68f', '#0099e6'];
+  const PIE_COLORS = [incomeHex, expenseHex];
 
   // ---- filtros ----
   const [filters, setFilters] = useState({
     accountId: '',
     categoryId: '',
-    month: '',  // 1..12
-    year: '',   // 2025...
+    month: '',
+    year: '',
   });
 
   // ---- opciones selects ----
   const [accountOptions, setAccountOptions] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
+
+  const selectBg     = useColorModeValue('white', 'neutral.700');
+  const selectBorder = border;
 
   const monthOptions = useMemo(
     () => Array.from({ length: 12 }, (_, i) => {
@@ -128,19 +143,15 @@ export function DashboardPage() {
     setLoading(true);
     try {
       const paramsBalance = mapFilters(f);
-      // 1) KPIs + cuentas (endpoint que tienes operativo)
       const { data: accBal } = await api.get('/accounts/balance', { params: paramsBalance });
       const kpiRaw = accBal?.kpi ?? { ingresos: 0, gastos: 0, balance: 0 };
       let accountsRows = Array.isArray(accBal?.accounts) ? accBal.accounts : [];
-
-      // Si hay cuenta filtrada, muestra solo esa en barras
       if (f.accountId) accountsRows = accountsRows.filter(a => String(a.id) === String(f.accountId));
       setBarData(accountsRows.map(a => ({
         name: a.name || `Cuenta ${a.id}`,
         balance: Number(a.balance ?? 0),
       })));
 
-      // 2) Monthly + Summary con fallback desde /cashflows (filtrados)
       const range = buildRange(f);
       const paramsCash = { ...mapFilters(f), ...range };
       let cashflows = [];
@@ -148,13 +159,12 @@ export function DashboardPage() {
         const { data } = await api.get('/cashflows', { params: paramsCash });
         cashflows = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
       } catch {
-        cashflows = []; // si no existe el endpoint, se muestran vacíos
+        cashflows = [];
       }
 
       const monthly = monthlyFromCashflows(cashflows);
       const sum = summaryFromCashflows(cashflows);
 
-      // 3) Elegir KPIs (prioriza filtrado real si hay cashflows; si no, usa balance global)
       const k = (cashflows.length > 0 || f.accountId || f.categoryId || f.month || f.year)
         ? { ingresos: sum.ingresos, gastos: sum.gastos, balance: sum.ingresos - sum.gastos }
         : { ingresos: Number(kpiRaw.ingresos||0), gastos: Number(kpiRaw.gastos||0), balance: Number(kpiRaw.balance||0) };
@@ -180,55 +190,70 @@ export function DashboardPage() {
 
   useEffect(() => { loadData(filters); }, [filters]);
 
-  // ---- UI ----
   return (
-    <>
+    <Box bg={pageBg} p={1}>
       {/* Filtros */}
-      <Box mb={4} p={4} bg={cardBg} borderRadius="2xl" boxShadow="sm">
+      <Box
+        mb={4}
+        p={4}
+        bg={cardBg}
+        border="1px solid"
+        borderColor={border}
+        borderRadius="2xl"
+        boxShadow="sm"
+      >
         <Flex gap={4} wrap="wrap" align="center">
           <HStack spacing={2}>
-            <Text minW="70px">Cuenta:</Text>
+            <Text minW="70px" color={muted}>Cuenta:</Text>
             <Select
               placeholder="Todas"
               value={filters.accountId}
               onChange={(e)=>setFilters(f=>({ ...f, accountId: e.target.value }))}
               maxW="260px"
+              bg={selectBg}
+              borderColor={selectBorder}
             >
               {accountOptions.map(o => (<option key={o.value} value={o.value}>{o.label}</option>))}
             </Select>
           </HStack>
 
           <HStack spacing={2}>
-            <Text minW="80px">Categoría:</Text>
+            <Text minW="80px" color={muted}>Categoría:</Text>
             <Select
               placeholder="Todas"
               value={filters.categoryId}
               onChange={(e)=>setFilters(f=>({ ...f, categoryId: e.target.value }))}
               maxW="260px"
+              bg={selectBg}
+              borderColor={selectBorder}
             >
               {categoryOptions.map(o => (<option key={o.value} value={o.value}>{o.label}</option>))}
             </Select>
           </HStack>
 
           <HStack spacing={2}>
-            <Text minW="45px">Mes:</Text>
+            <Text minW="45px" color={muted}>Mes:</Text>
             <Select
               placeholder="Todos"
               value={filters.month}
               onChange={(e)=>setFilters(f=>({ ...f, month: e.target.value }))}
               maxW="180px"
+              bg={selectBg}
+              borderColor={selectBorder}
             >
               {monthOptions.map(m => (<option key={m.value} value={m.value}>{m.label}</option>))}
             </Select>
           </HStack>
 
           <HStack spacing={2}>
-            <Text minW="45px">Año:</Text>
+            <Text minW="45px" color={muted}>Año:</Text>
             <Select
               placeholder="Todos"
               value={filters.year}
               onChange={(e)=>setFilters(f=>({ ...f, year: e.target.value }))}
               maxW="140px"
+              bg={selectBg}
+              borderColor={selectBorder}
             >
               {yearOptions.map(y => (<option key={y.value} value={y.value}>{y.label}</option>))}
             </Select>
@@ -236,8 +261,9 @@ export function DashboardPage() {
 
           <Button
             onClick={()=>setFilters({ accountId:'', categoryId:'', month:'', year:'' })}
-            colorScheme="blue"
-            variant="solid"
+            bg={useColorModeValue('brand.500','accent.500')}
+            color={useColorModeValue('white','black')}
+            _hover={{ bg: useColorModeValue('brand.600','accent.600') }}
           >
             Limpiar filtros
           </Button>
@@ -248,12 +274,12 @@ export function DashboardPage() {
         <Spinner mt={10} size="xl" />
       ) : (
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
-          {/* KPIs */}
-          <Box bg={cardBg} p={6} borderRadius="2xl" boxShadow="md" color={cardColor}>
+          {/* KPI Ingresos */}
+          <Box bg={cardBg} p={6} borderRadius="2xl" boxShadow="md" border="1px solid" borderColor={border}>
             <HStack spacing={4}>
-              <Icon as={FiDollarSign} w={8} h={8} color="green.400" />
+              <Icon as={FiDollarSign} w={8} h={8} color={incomeHex} />
               <Box>
-                <Text fontSize="sm" fontWeight="bold">Ingresos</Text>
+                <Text fontSize="sm" fontWeight="bold" color={muted}>Ingresos</Text>
                 <Text fontSize="2xl" fontWeight="bold">
                   {Number(kpi.ingresos || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
                 </Text>
@@ -261,11 +287,12 @@ export function DashboardPage() {
             </HStack>
           </Box>
 
-          <Box bg={cardBg} p={6} borderRadius="2xl" boxShadow="md" color={cardColor}>
+          {/* KPI Gastos */}
+          <Box bg={cardBg} p={6} borderRadius="2xl" boxShadow="md" border="1px solid" borderColor={border}>
             <HStack spacing={4}>
-              <Icon as={FiTrendingDown} w={8} h={8} color="red.400" />
+              <Icon as={FiTrendingDown} w={8} h={8} color={expenseHex} />
               <Box>
-                <Text fontSize="sm" fontWeight="bold">Gastos</Text>
+                <Text fontSize="sm" fontWeight="bold" color={muted}>Gastos</Text>
                 <Text fontSize="2xl" fontWeight="bold">
                   {Number(kpi.gastos || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
                 </Text>
@@ -273,11 +300,12 @@ export function DashboardPage() {
             </HStack>
           </Box>
 
-          <Box bg={cardBg} p={6} borderRadius="2xl" boxShadow="md" color={cardColor}>
+          {/* KPI Balance */}
+          <Box bg={cardBg} p={6} borderRadius="2xl" boxShadow="md" border="1px solid" borderColor={border}>
             <HStack spacing={4}>
-              <Icon as={FiTrendingUp} w={8} h={8} color="blue.400" />
+              <Icon as={FiTrendingUp} w={8} h={8} color={useColorModeValue('blue.500','blue.300')} />
               <Box>
-                <Text fontSize="sm" fontWeight="bold">Balance</Text>
+                <Text fontSize="sm" fontWeight="bold" color={muted}>Balance</Text>
                 <Text fontSize="2xl" fontWeight="bold">
                   {Number(kpi.balance || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
                 </Text>
@@ -286,47 +314,58 @@ export function DashboardPage() {
           </Box>
 
           {/* Línea */}
-          <Box bg={cardBg} p={6} borderRadius="2xl" boxShadow="md" color={cardColor} colSpan={3}>
-            <Text fontSize="xl" fontWeight="bold" mb={4}>Ingresos vs Gastos</Text>
+          <Box
+            bg={cardBg}
+            p={6}
+            borderRadius="2xl"
+            boxShadow="md"
+            border="1px solid"
+            borderColor={border}
+            gridColumn={{ lg: '1 / span 3' }}
+          >
+            <Text fontSize="xl" fontWeight="bold" mb={2}>Ingresos vs Gastos</Text>
+            <Text fontSize="sm" color={muted} mb={4}>Evolución mensual</Text>
             <ResponsiveContainer width="100%" height={300} key={`lc-${renderKey}`}>
               <LineChart data={lineData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip />
-                <Line type="monotone" dataKey="ingresos" stroke="#00e68f" strokeWidth={2} />
-                <Line type="monotone" dataKey="gastos" stroke="#0099e6" strokeWidth={2} />
+                <Line type="monotone" dataKey="ingresos" stroke={incomeHex} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="gastos" stroke={expenseHex} strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </Box>
 
           {/* Barras */}
-          <Box bg={cardBg} p={6} borderRadius="2xl" boxShadow="md" color={cardColor}>
-            <Text fontSize="xl" fontWeight="bold" mb={4}>Balances por Cuenta</Text>
+          <Box bg={cardBg} p={6} borderRadius="2xl" boxShadow="md" border="1px solid" borderColor={border}>
+            <Text fontSize="xl" fontWeight="bold" mb={2}>Balances por cuenta</Text>
+            <Text fontSize="sm" color={muted} mb={4}>Saldo actual por cuenta</Text>
             <ResponsiveContainer width="100%" height={250} key={`bc-${renderKey}`}>
               <BarChart data={barData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="balance" fill="#00e68f" />
+                <Bar dataKey="balance" fill={barHex} />
               </BarChart>
             </ResponsiveContainer>
           </Box>
 
           {/* Pie */}
-          <Box bg={cardBg} p={6} borderRadius="2xl" boxShadow="md" color={cardColor}>
-            <Text fontSize="xl" fontWeight="bold" mb={4}>Distribución Ingresos/Gastos</Text>
+          <Box bg={cardBg} p={6} borderRadius="2xl" boxShadow="md" border="1px solid" borderColor={border}>
+            <Text fontSize="xl" fontWeight="bold" mb={2}>Distribución</Text>
+            <Text fontSize="sm" color={muted} mb={4}>Ingresos vs Gastos</Text>
             <ResponsiveContainer width="100%" height={250} key={`pc-${renderKey}`}>
               <RePieChart>
                 <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                  {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Pie>
               </RePieChart>
             </ResponsiveContainer>
           </Box>
         </SimpleGrid>
       )}
-    </>
+    </Box>
   );
 }

@@ -1,12 +1,24 @@
-// src/ui/pages/SettingsPage/SettingsPage.jsx
-import React, { useRef, useState } from "react";
+import React, { useRef, useState } from 'react';
 import {
-  Box, Heading, Text, Select, Button, useColorMode,
-  useToast, AlertDialog, AlertDialogBody, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogContent, AlertDialogOverlay,
-  Stack, Divider
-} from "@chakra-ui/react";
-import { clearAllCashflows } from "@/api/forecastsService.js";
+  Box,
+  Heading,
+  Text,
+  Select,
+  Button,
+  useColorMode,
+  useToast,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  Stack,
+  Divider,
+  HStack,
+  useColorModeValue,
+} from '@chakra-ui/react';
+import { clearAllCashflows } from '@/api/forecastsService.js';
 
 export function SettingsPage() {
   const { colorMode, toggleColorMode } = useColorMode();
@@ -15,10 +27,20 @@ export function SettingsPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Theme tokens
+  const pageBg   = useColorModeValue('neutral.50', 'neutral.900');
+  const cardBg   = useColorModeValue('white', 'neutral.800');
+  const border   = useColorModeValue('neutral.200', 'neutral.700');
+  const subtle   = useColorModeValue('neutral.700', 'neutral.300');
+  const muted    = useColorModeValue('neutral.500', 'neutral.400');
+  const btnBg    = useColorModeValue('brand.500', 'accent.500');
+  const btnHover = useColorModeValue('brand.600', 'accent.600');
+  const btnText  = useColorModeValue('white', 'black');
+
   const handleThemeChange = (e) => {
     const v = e.target.value;
-    if (v === "Oscuro" && colorMode !== "dark") toggleColorMode();
-    if (v === "Claro" && colorMode !== "light") toggleColorMode();
+    if (v === 'Oscuro' && colorMode !== 'dark') toggleColorMode();
+    if (v === 'Claro'  && colorMode !== 'light') toggleColorMode();
   };
 
   const handleClearAll = async () => {
@@ -26,17 +48,17 @@ export function SettingsPage() {
     try {
       const res = await clearAllCashflows();
       toast({
-        title: "Vencimientos eliminados",
+        title: 'Vencimientos eliminados',
         description: `Se eliminaron ${res.deleted ?? 0} registros.`,
-        status: "success",
+        status: 'success',
         duration: 4000,
         isClosable: true,
       });
     } catch (e) {
       toast({
-        title: "Error",
-        description: "No se pudieron borrar los vencimientos.",
-        status: "error",
+        title: 'Error',
+        description: 'No se pudieron borrar los vencimientos.',
+        status: 'error',
         duration: 5000,
         isClosable: true,
       });
@@ -48,56 +70,96 @@ export function SettingsPage() {
   };
 
   return (
-    <Box p={6}>
-      <Heading mb={2}>Configuración</Heading>
-      <Text mb={6}>Personaliza la aplicación a tus necesidades.</Text>
+    <Box bg={pageBg} minH="calc(100vh - 120px)" p={6}>
+      <Box
+        bg={cardBg}
+        border="1px solid"
+        borderColor={border}
+        rounded="lg"
+        p={6}
+        mb={6}
+      >
+        <Heading size="md" mb={1}>Configuración</Heading>
+        <Text fontSize="sm" color={muted} mb={4}>
+          Personaliza la aplicación a tus necesidades.
+        </Text>
 
-      <Stack spacing={6}>
-        {/* Preferencias UI */}
-        <Box p={6} borderRadius="md" shadow="md" bg={colorMode === "light" ? "gray.100" : "gray.700"}>
-          <Heading size="sm" mb={4}>Preferencias de interfaz</Heading>
-
-          <Text mb={2}>Tema de la interfaz</Text>
-          <Select
-            value={colorMode === "light" ? "Claro" : "Oscuro"}
-            onChange={handleThemeChange}
-            mb={4}
-            maxW="280px"
+        <Stack spacing={6}>
+          {/* Preferencias UI */}
+          <Box
+            bg={cardBg}
+            border="1px solid"
+            borderColor={border}
+            rounded="md"
+            p={6}
           >
-            <option>Claro</option>
-            <option>Oscuro</option>
-          </Select>
+            <Heading size="sm" mb={4}>Preferencias de interfaz</Heading>
 
-          <Text mb={2}>Moneda base</Text>
-          <Select mb={6} maxW="280px">
-            <option>EUR (€)</option>
-            <option>USD ($)</option>
-            <option>GBP (£)</option>
-          </Select>
+            <Text mb={2} color={subtle}>Tema de la interfaz</Text>
+            <Select
+              value={colorMode === 'light' ? 'Claro' : 'Oscuro'}
+              onChange={handleThemeChange}
+              mb={4}
+              maxW="280px"
+              bg={useColorModeValue('white', 'neutral.700')}
+              borderColor={border}
+            >
+              <option>Claro</option>
+              <option>Oscuro</option>
+            </Select>
 
-          <Button colorScheme="blue">Guardar Cambios</Button>
-        </Box>
+            <Text mb={2} color={subtle}>Moneda base</Text>
+            <Select
+              mb={6}
+              maxW="280px"
+              bg={useColorModeValue('white', 'neutral.700')}
+              borderColor={border}
+              defaultValue="EUR"
+            >
+              <option value="EUR">EUR (€)</option>
+              <option value="USD">USD ($)</option>
+              <option value="GBP">GBP (£)</option>
+            </Select>
 
-        {/* Acciones peligrosas */}
-        <Box p={6} borderRadius="md" shadow="md" bg={colorMode === "light" ? "gray.100" : "gray.700"}>
-          <Heading size="sm" mb={4}>Acciones</Heading>
-          <Text mb={2} color="gray.300">Vencimientos</Text>
-          <Text fontSize="sm" mb={4} color="gray.400">
-            Borra todos los vencimientos del calendario. Esta acción no se puede deshacer.
-          </Text>
+            <HStack>
+              <Button
+                bg={btnBg}
+                color={btnText}
+                _hover={{ bg: btnHover }}
+              >
+                Guardar cambios
+              </Button>
+            </HStack>
+          </Box>
 
-          <Divider mb={4} opacity={0.3} />
-
-          <Button
-            colorScheme="red"
-            variant="solid"
-            onClick={() => setConfirmOpen(true)}
-            isLoading={busy}
+          {/* Acciones */}
+          <Box
+            bg={cardBg}
+            border="1px solid"
+            borderColor={border}
+            rounded="md"
+            p={6}
           >
-            Borrar TODOS los vencimientos
-          </Button>
-        </Box>
-      </Stack>
+            <Heading size="sm" mb={4}>Acciones</Heading>
+            <Text mb={2} color={subtle}>Vencimientos</Text>
+            <Text fontSize="sm" mb={4} color={muted}>
+              Borra todos los vencimientos del calendario. Esta acción no se puede deshacer.
+            </Text>
+
+            <Divider mb={4} opacity={0.5} />
+
+            <Button
+              bg="red.600"
+              _hover={{ bg: 'red.700' }}
+              color="white"
+              onClick={() => setConfirmOpen(true)}
+              isLoading={busy}
+            >
+              Borrar TODOS los vencimientos
+            </Button>
+          </Box>
+        </Stack>
+      </Box>
 
       {/* Diálogo de confirmación */}
       <AlertDialog
@@ -106,7 +168,7 @@ export function SettingsPage() {
         onClose={() => !busy && setConfirmOpen(false)}
       >
         <AlertDialogOverlay>
-          <AlertDialogContent>
+          <AlertDialogContent bg={cardBg} border="1px solid" borderColor={border}>
             <AlertDialogHeader fontSize="lg" fontWeight="bold">
               Confirmar borrado masivo
             </AlertDialogHeader>
@@ -117,10 +179,10 @@ export function SettingsPage() {
             </AlertDialogBody>
 
             <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={() => setConfirmOpen(false)} disabled={busy}>
+              <Button ref={cancelRef} onClick={() => setConfirmOpen(false)} disabled={busy} mr={3}>
                 Cancelar
               </Button>
-              <Button colorScheme="red" onClick={handleClearAll} ml={3} isLoading={busy}>
+              <Button colorScheme="red" onClick={handleClearAll} isLoading={busy}>
                 Sí, borrar todo
               </Button>
             </AlertDialogFooter>

@@ -2,6 +2,10 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAccounts, createAccount, updateAccount, deleteAccount } from '@/api/accountsService.js';
 import { useForm } from 'react-hook-form';
+import {
+  Box, Heading, Button, Input, useColorModeValue, Stack, FormControl, FormLabel,
+  Table, Thead, Tbody, Tr, Th, Td, HStack, Spinner, Text
+} from '@chakra-ui/react';
 
 const toHexSafe = (c) => {
   const v = String(c || '').toUpperCase();
@@ -11,12 +15,18 @@ const toHexSafe = (c) => {
 export function AccountsPage() {
   const qc = useQueryClient();
 
+  // tokens del tema
+  const pageBg   = useColorModeValue('neutral.50','neutral.900');
+  const cardBg   = useColorModeValue('white','neutral.800');
+  const border   = useColorModeValue('neutral.200','neutral.700');
+  const subtle   = useColorModeValue('neutral.600','neutral.300');
+
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ['accounts'],
     queryFn: getAccounts,
   });
 
-  const { register, handleSubmit, reset, watch } = useForm({
+  const { register, handleSubmit, reset } = useForm({
     defaultValues: { alias: '', bank: '', number: '', initialBalance: 0, color: '#2563EB' },
   });
 
@@ -38,9 +48,7 @@ export function AccountsPage() {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(['accounts'], ctx.prev);
     },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ['accounts'] });
-    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['accounts'] }),
   });
 
   const deleteMut = useMutation({
@@ -49,110 +57,121 @@ export function AccountsPage() {
   });
 
   const onSubmit = (vals) => {
-    const color = toHexSafe(vals.color) || undefined; // backend generará uno si falta
+    const color = toHexSafe(vals.color) || undefined;
     createMut.mutate({ ...vals, color }, { onSuccess: () => reset() });
   };
 
   const onColorChange = (a, color) => {
     const hex = toHexSafe(color);
-    if (!hex) return; // ignora valores inválidos
+    if (!hex) return;
     updateMut.mutate({ id: a._id, payload: { color: hex } });
   };
 
   if (isLoading) {
     return (
-      <div className="page">
-        <div className="card">Cargando…</div>
-      </div>
+      <Box bg={pageBg} minH="calc(100vh - 120px)" p={6} display="grid" placeItems="center">
+        <HStack>
+          <Spinner />
+          <Text color={subtle}>Cargando…</Text>
+        </HStack>
+      </Box>
     );
   }
 
   return (
-    <div className="page">
-      <div className="card">
-        <h3>Nueva cuenta</h3>
-        <form onSubmit={handleSubmit(onSubmit)} className="controls">
-          <input className="input" placeholder="Alias" {...register('alias', { required: true })} />
-          <input className="input" placeholder="Banco" {...register('bank')} />
-          <input className="input" placeholder="Número" {...register('number')} />
-          <input
-            className="input"
-            type="number"
-            step="0.01"
-            placeholder="Saldo inicial"
-            {...register('initialBalance', { valueAsNumber: true })}
-          />
+    <Box bg={pageBg} minH="calc(100vh - 120px)" p={6}>
+      {/* Nueva cuenta */}
+      <Box bg={cardBg} border="1px solid" borderColor={border} rounded="lg" p={6} mb={6}>
+        <Heading size="md" mb={4}>Nueva cuenta</Heading>
+        <Box as="form" onSubmit={handleSubmit(onSubmit)}>
+          <Stack direction={{ base: 'column', md: 'row' }} spacing={4} mb={4}>
+            <FormControl isRequired>
+              <FormLabel>Alias</FormLabel>
+              <Input placeholder="Alias" {...register('alias', { required: true })} />
+            </FormControl>
+            <FormControl>
+              <FormLabel>Banco</FormLabel>
+              <Input placeholder="Banco" {...register('bank')} />
+            </FormControl>
+            <FormControl>
+              <FormLabel>Número</FormLabel>
+              <Input placeholder="Número" {...register('number')} />
+            </FormControl>
+            <FormControl>
+              <FormLabel>Saldo inicial</FormLabel>
+              <Input type="number" step="0.01" placeholder="0,00" {...register('initialBalance', { valueAsNumber: true })} />
+            </FormControl>
+            <FormControl>
+              <FormLabel>Color</FormLabel>
+              <Input type="color" p={0} h="40px" {...register('color')} />
+            </FormControl>
+          </Stack>
+          <Button type="submit" isLoading={createMut.isPending}>Guardar</Button>
+        </Box>
+      </Box>
 
-          {/* Color de la cuenta (crear) */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            Color:
-            <input type="color" {...register('color')} />
-            {/*<code style={{ fontSize: 12 }}>{(watch('color') || '').toUpperCase()}</code>*/}
-          </label>
-
-          <button className="btn" type="submit">Guardar</button>
-        </form>
-      </div>
-
-      <div className="card">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Color</th>
-              <th>Alias</th>
-              <th>Banco</th>
-              <th>Número</th>
-              <th>Saldo inicial</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
+      {/* Listado */}
+      <Box bg={cardBg} border="1px solid" borderColor={border} rounded="lg" p={6}>
+        <Table size="sm" variant="simple">
+          <Thead>
+            <Tr>
+              <Th>Color</Th>
+              <Th>Alias</Th>
+              <Th>Banco</Th>
+              <Th>Número</Th>
+              <Th isNumeric>Saldo inicial</Th>
+              <Th></Th>
+            </Tr>
+          </Thead>
+          <Tbody>
             {accounts.map(a => (
-              <tr key={a._id}>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span
+              <Tr key={a._id}>
+                <Td>
+                  <HStack>
+                    <Box
                       title={a.color || '#999999'}
-                      style={{
-                        width: 18, height: 18, borderRadius: 4,
-                        background: a.color || '#999999', border: '1px solid #ddd'
-                      }}
+                      w="18px" h="18px" rounded="md"
+                      border="1px solid" borderColor={border}
+                      bg={a.color || '#999999'}
                     />
-                    <input
+                    <Input
                       type="color"
                       value={/^#[0-9a-fA-F]{6}$/.test(a.color || '') ? a.color : '#999999'}
                       onChange={(e) => onColorChange(a, e.target.value)}
-                      style={{ cursor: 'pointer', background: 'transparent', border: 'none' }}
+                      w="44px" h="32px" p={0} border="none" bg="transparent" cursor="pointer"
                     />
-                    {/*<code style={{ fontSize: 12 }}>{(a.color || '#999999').toUpperCase()}</code>*/}
-                  </div>
-                </td>
-                <td>{a.alias}</td>
-                <td>{a.bank || '—'}</td>
-                <td>{a.number || '—'}</td>
-                <td>
-                  {(a.initialBalance || 0).toLocaleString('es-ES', {
-                    style: 'currency',
-                    currency: 'EUR',
-                  })}
-                </td>
-                <td style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn-secondary"
-                    onClick={() => updateMut.mutate({ id: a._id, payload: { alias: a.alias + '*' } })}
-                  >
-                    Renombrar *
-                  </button>
-                  <button className="btn-danger" onClick={() => deleteMut.mutate(a._id)}>
-                    Eliminar
-                  </button>
-                </td>
-              </tr>
+                  </HStack>
+                </Td>
+                <Td>{a.alias}</Td>
+                <Td>{a.bank || '—'}</Td>
+                <Td>{a.number || '—'}</Td>
+                <Td isNumeric>
+                  {(a.initialBalance || 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+                </Td>
+                <Td>
+                  <HStack justify="flex-end">
+                    <Button
+                      variant="ghost"
+                      onClick={() => updateMut.mutate({ id: a._id, payload: { alias: a.alias + '*' } })}
+                      isLoading={updateMut.isPending}
+                    >
+                      Renombrar *
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      colorScheme="red"
+                      onClick={() => deleteMut.mutate(a._id)}
+                      isLoading={deleteMut.isPending}
+                    >
+                      Eliminar
+                    </Button>
+                  </HStack>
+                </Td>
+              </Tr>
             ))}
-          </tbody>
-
-        </table>
-      </div>
-    </div>
+          </Tbody>
+        </Table>
+      </Box>
+    </Box>
   );
 }
