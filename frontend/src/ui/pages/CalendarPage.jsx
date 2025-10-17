@@ -6,75 +6,191 @@ import esLocale from "@fullcalendar/core/locales/es";
 import { getCalendar } from "@/api/forecastsService.js";
 import { NewForecastModal } from "@/ui/components/NewForecastModal.jsx";
 import { api } from "@/lib/api.js";
-import {
-  Box,
-  Button,
-  HStack,
-  Select,
-  VStack,
-  useColorModeValue,
-} from "@chakra-ui/react";
-import { useQuery } from '@tanstack/react-query';
-import { getAccounts } from '@/api/accountsService.js';
-import { setCashflowStatus } from '@/api/cashflowsService.js';
+import { Button, useColorModeValue } from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
+import { getAccounts } from "@/api/accountsService.js";
+import { setCashflowStatus } from "@/api/cashflowsService.js";
+import { createPortal } from "react-dom";
+
+/* ========= Utils ========= */
+const toISODate = (v) => {
+  if (!v) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+};
+const pickEventDate = (ev) =>
+  toISODate(ev.date ?? ev.start ?? ev.startStr ?? ev?.extendedProps?.date);
+
+// ✅ añade este helper arriba (junto a utils)
+const toLocalYMD = (ymdOrISO) => {
+  if (!ymdOrISO) return null;
+  const d = new Date(ymdOrISO.length > 10 ? ymdOrISO : `${ymdOrISO}T00:00:00`);
+  if (isNaN(d)) return null;
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+};
 
 
+// Deriva el uiStatus en base al estado persistido y fecha
+const computeUiStatus = (persistedStatus, ymd) => {
+  if (!persistedStatus) return "pending";
+  if (persistedStatus === "paid") return "paid";
+  if (persistedStatus === "unpaid") return "unpaid";
+ 
+  // pending: si fecha pasada => overdue
+  if (persistedStatus === "pending") {
+    if (!ymd) return "pending";
+    const today = new Date(); today.setHours(0,0,0,0);
+    const d = new Date(ymd + "T00:00:00");
+    return d < today ? "overdue" : "pending";
+  }
+  // fallback
+  return persistedStatus;
+};
 
+/* ========= Menú de estado (botón) ========= */
+function EventStatusMenu({ value, onChange }) {
+  const [open, setOpen] = React.useState(false);
+  const [pos, setPos] = React.useState({ top: 0, left: 0, width: 168 });
+  const btnRef = React.useRef(null);
 
+  // Tema
+  const btnBg   = useColorModeValue("#E5E7EB", "#374151");
+  const btnBor  = useColorModeValue("#CBD5E1", "#4B5563");
+  const btnFg   = useColorModeValue("#111827", "#F9FAFB");
+
+  const menuBg  = useColorModeValue("#FFFFFF", "#1F2937");
+  const menuFg  = useColorModeValue("#111827", "#F3F4F6");
+  const menuBor = useColorModeValue("#E5E7EB", "#374151");
+  const itemHv  = useColorModeValue("#F3F4F6", "#111827");
+  const shadow  = useColorModeValue("0 12px 28px rgba(0,0,0,.14)", "0 12px 28px rgba(0,0,0,.35)");
+
+  const toggle = (e) => { e.stopPropagation(); setOpen(o => !o); };
+
+  React.useEffect(() => {
+    if (!open || !btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    const mw = 168;
+    const left = Math.max(8, Math.min(rect.right - mw, window.innerWidth - mw - 8));
+    const top  = Math.min(rect.bottom + 6, window.innerHeight - 8);
+    setPos({ top, left, width: mw });
+
+    const close = (ev) => {
+      // cierra si click fuera del botón o del menú
+      if (!btnRef.current?.contains(ev.target)) setOpen(false);
+    };
+    const hide  = () => setOpen(false);
+    document.addEventListener("click", close);  // burbujeo (no capture) para menos coste
+    window.addEventListener("resize", hide);
+    window.addEventListener("scroll", hide, true);
+    return () => {
+      document.removeEventListener("click", close);
+      window.removeEventListener("resize", hide);
+      window.removeEventListener("scroll", hide, true);
+    };
+  }, [open]);
+
+  const Item = ({ v, children }) => (
+    <div
+      className="evt-ctrl"
+      role="option"
+      onClick={(e)=>{ e.stopPropagation(); onChange(v); setOpen(false); }}
+      onMouseDown={(e)=> e.preventDefault()}
+      style={{
+        padding:"8px 12px",
+        cursor:"pointer",
+        whiteSpace:"nowrap",
+        borderRadius:6,
+        userSelect:"none"
+      }}
+      onMouseEnter={(e)=> (e.currentTarget.style.background = itemHv)}
+      onMouseLeave={(e)=> (e.currentTarget.style.background = "transparent")}
+    >
+      {children}
+    </div>
+  );
+
+  return (
+    <div className="evt-ctrl" style={{ position:"relative", display:"inline-flex" }} onClick={(e)=> e.stopPropagation()}>
+      <button
+        ref={btnRef}
+        className="evt-ctrl"
+        onClick={toggle}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="Cambiar estado"
+        title="Cambiar estado"
+        style={{
+          width:22, height:22,
+          display:"inline-flex", alignItems:"center", justifyContent:"center",
+          borderRadius:6, border:`1px solid ${btnBor}`, background:btnBg, color:btnFg,
+          cursor:"pointer", padding:0, marginLeft:4, lineHeight:1
+        }}
+        onMouseDown={(e)=> e.preventDefault()}
+      >
+        ▾
+      </button>
+
+      {open && createPortal(
+        <div
+          className="evt-ctrl"
+          role="listbox"
+          style={{
+            position:"fixed", top:pos.top, left:pos.left, width:pos.width,
+            zIndex: 2147483647,
+            background:menuBg, color:menuFg, border:`1px solid ${menuBor}`,
+            borderRadius:10, boxShadow:shadow, padding:6
+          }}
+          onClick={(e)=> e.stopPropagation()}
+          onWheel={(e)=> e.stopPropagation()}
+        >
+          <Item v="pending">Pendiente</Item>
+          <Item v="overdue">Vencido</Item>
+          <Item v="unpaid">Impagado</Item>
+          <Item v="paid">Pagado</Item>
+          
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+/* ========= Página ========= */
 export function CalendarPage() {
   const ref = useRef(null);
-
-  const [calKey, setCalKey] = useState(0);
-
-  const [allEvents, setAllEvents] = useState([]); // todos los eventos globales
-  const [events, setEvents] = useState([]);       // eventos filtrados
+  const [allEvents, setAllEvents] = useState([]);
+  const [events, setEvents] = useState([]);
   const [open, setOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
-  const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts });
+  const { data: accounts = [] } = useQuery({ queryKey: ["accounts"], queryFn: getAccounts });
+ 
+  const [calKey, setCalKey] = useState(0);
 
-  // === Totales por día ===
+
+  // Totales por día
   const [dayTotals, setDayTotals] = useState(new Map());
-  const SUM_ABSOLUTE = true; // true => suma en valor absoluto; false => respeta signo
+  const SUM_ABSOLUTE = true;
 
-  const toYMD = (d) => d.toISOString().slice(0,10);
-
-  // Colores dinámicos
-  const bgContent = useColorModeValue("neutral.50", "neutral.900");
-  const textContent = useColorModeValue("neutral.800", "neutral.100");
-  const inputBg = useColorModeValue("neutral.50", "neutral.700");
-  const inputColor = useColorModeValue("neutral.800", "neutral.100");
-  const placeholderColor = useColorModeValue("gray.400", "gray.500");
+  // Botones
   const buttonBg = useColorModeValue("brand.500", "accent.500");
   const buttonColor = useColorModeValue("white", "black");
   const buttonHover = useColorModeValue("brand.600", "accent.600");
-  const bgCard = useColorModeValue("neutral.100", "neutral.800");
-  const totalBg = useColorModeValue('rgba(255,255,255,0.85)', 'rgba(17,24,39,0.55)');
-  const totalColor = useColorModeValue('#111', '#f3f4f6');
-  const dayTotalBg = useColorModeValue('rgba(255,255,255,0.85)', 'rgba(17,24,39,0.55)');
-  const dayTotalColor = useColorModeValue('#111', '#f3f4f6');
 
+  // Filtros
   const [filters, setFilters] = useState({
     accountId: "",
     categoryId: "",
     month: "",
     year: "",
-    status: "",   // 👈 NUEVO: filtro por estado uiStatus ('pending'|'overdue'|'paid')
+    status: "", // filtrado por estado persistido
   });
 
-  const [calTitle, setCalTitle] = React.useState('');
+  const [calTitle, setCalTitle] = useState("");
 
-
-  // ---- helpers fecha ----
-  const toISODate = (v) => {
-    if (!v) return null;
-    const d = v instanceof Date ? v : new Date(v);
-    if (isNaN(d.getTime())) return null;
-    return d.toISOString().slice(0, 10);
-  };
-  const pickEventDate = (ev) =>
-    toISODate(ev.date ?? ev.start ?? ev.startStr ?? ev?.extendedProps?.date);
-
-  // ---- helpers campos ----
+  // helpers campos
   const getAccountId = (e) =>
     String(
       e.account?._id ?? e.accountId ?? e.account ??
@@ -107,13 +223,12 @@ export function CalendarPage() {
   const getType = (e) => e.extendedProps?.type ?? e.type ?? undefined;
   const getAmount = (e) => Number(e.amount ?? e.extendedProps?.amount ?? 0) || 0;
 
-  // ---- carga global ----
+  // carga global
   async function loadAll() {
     try {
-      const data = await getCalendar({}); // ⚠️ backend debe permitir devolver todos
+      const data = await getCalendar({});
       const arr = Array.isArray(data) ? data : [];
-      
-      
+
       const normalized = arr.map((e) => {
         const id = String(e.id ?? e._id ?? e?.extendedProps?.cashflowId ?? "");
         const startISO = pickEventDate(e);
@@ -123,16 +238,15 @@ export function CalendarPage() {
         const categoryName = getCategoryName(e, categoryId);
         const type = getType(e);
         const amount = getAmount(e);
-        
-        const backendColor = e.color || e.extendedProps?.color || undefined; // ⟵ color backend
-        const uiStatus = e.extendedProps?.uiStatus;     // ⟵ 'pending' | 'overdue' | 'paid'
-        
+
+        const backendColor = e.color || e.extendedProps?.color || undefined;
+        const status = e.status ?? e.extendedProps?.status ?? "pending"; // persistido
+        const ui = computeUiStatus(status, startISO);                    // derivado
 
         const accountColor =
-        e.account?.color ??
-        e.extendedProps?.account?.color ??
-        undefined;
-
+          e.account?.color ??
+          e.extendedProps?.account?.color ??
+          undefined;
 
         return {
           ...e,
@@ -145,43 +259,43 @@ export function CalendarPage() {
           _type: type,
           _amount: amount,
           _accountColor: accountColor,
-          _color: backendColor,        // ⟵ guarda color backend
-          _uiStatus: uiStatus,   
+          _color: backendColor,
+          _status: status,   // persistido
+          _ui: ui,           // derivado
           extendedProps: {
             ...(e.extendedProps || {}),
             amount,
             type,
-            accountAlias: accountAlias,
+            accountAlias,
             categoryName,
             counterparty: e.counterparty ?? e.extendedProps?.counterparty ?? null,
             accountColor,
-            uiStatus,
-            group: false,  // ⟵ marca de evento individual no agrupado
+            status,
+            uiStatus: ui,
+            group: false,
           },
         };
       }).filter(e => !!e.start);
 
       setAllEvents(normalized);
       setEvents(projectForCalendar(normalized, filters));
-      
-
     } catch (err) {
       console.error(err);
       alert("No se pudo cargar el calendario global");
     }
   }
 
-  // Filtra base sin agrupar: se usa para calcular totales
+  // filtro totales
   function filterBaseForTotals(source, f) {
     let list = source;
     if (f.accountId) list = list.filter(e => e._accountId === f.accountId);
     if (f.categoryId) list = list.filter(e => e._categoryId === f.categoryId);
-    if (f.month) list = list.filter(e => (new Date(e.start + 'T00:00:00Z').getUTCMonth() + 1) === Number(f.month));
-    if (f.year)  list = list.filter(e => new Date(e.start + 'T00:00:00Z').getUTCFullYear() === Number(f.year));
+    if (f.month) list = list.filter(e => (new Date(e.start + "T00:00:00Z").getUTCMonth() + 1) === Number(f.month));
+    if (f.year)  list = list.filter(e => new Date(e.start + "T00:00:00Z").getUTCFullYear() === Number(f.year));
     return list;
   }
 
-  // ---- proyección para pintar ----
+  // proyección para pintar
   function projectForCalendar(source, f) {
     let list = source;
     if (f.accountId) list = list.filter(e => e._accountId === f.accountId);
@@ -189,39 +303,49 @@ export function CalendarPage() {
     if (f.month) list = list.filter(e => (new Date(e.start + "T00:00:00Z").getUTCMonth() + 1) === Number(f.month));
     if (f.year) list = list.filter(e => new Date(e.start + "T00:00:00Z").getUTCFullYear() === Number(f.year));
 
-    // 👇 NUEVO: filtro por estado (pending | overdue | paid)
-    if (f.status) {list = list.filter(e => (e._uiStatus || e.extendedProps?.uiStatus) === f.status);}
+    /*if (f.status) {
+      list = list.filter(e => (e._status || e.extendedProps?.status) === f.status);
+    }*/
 
-    // Cuenta específica ⇒ eventos individuales
+      if (f.status) {
+        // filtra por el estado *visual* (pending | overdue | paid | unpaid)
+        list = list.filter(e => {
+          const ui = e._ui
+            || e.extendedProps?.uiStatus
+            || computeUiStatus(e._status || e.extendedProps?.status, e.start?.slice(0,10));
+          return ui === f.status;
+        });
+      }
+
     if (f.accountId) {
       return list.map((e) => {
         const prov = e.extendedProps?.counterparty?.name || "—";
         const amount = e._amount.toLocaleString("es-ES", { minimumFractionDigits: 2 });
         const cat = e._categoryName || "—";
         const fallback = e._type === "out" ? "#ef4444" : "#10b981";
-        const accColor = e._color || e._accountColor || fallback; // <-- usa color backend o de cuenta o por tipo
+        const accColor = e._color || e._accountColor || fallback;
 
         return {
           id: e.id,
           title: `${prov} · ${amount}€ · ${cat}`,
           start: e.start,
           allDay: true,
-          backgroundColor: accColor, // <-- fondo
-          borderColor: accColor,     // <-- borde
-          textColor: '#fff',         // opcional para contraste
+          backgroundColor: accColor,
+          borderColor: accColor,
+          textColor: "#fff",
           extendedProps: e.extendedProps,
         };
       });
     }
 
-    // Todas ⇒ agrupar por (día + cuenta)
+    // agrupado
     const grouped = new Map();
     for (const e of list) {
       const accId = e._accountId || "NA";
       const key = `${e.start}__${accId}`;
       const fallback = e._type === "out" ? "#ef4444" : "#10b981";
       const accColor = e._color || e._accountColor || fallback;
-      
+
       const prev = grouped.get(key);
       if (!prev) {
         grouped.set(key, {
@@ -238,28 +362,26 @@ export function CalendarPage() {
       }
     }
 
-    return Array.from(grouped.values()).map(g => {
-      return {
-        id: `${g.date}__${g.accId}`,
-        title: `${g.accAlias}: ${g.sum.toLocaleString("es-ES", { minimumFractionDigits: 2 })}€`,
-        start: g.date,
-        allDay: true,
-        backgroundColor: g.accColor,
-        borderColor: g.accColor,
-        textColor: '#fff',
-        extendedProps: {
-          group: true,              // 👈 marca de agrupado
-          accId: g.accId,         // 👈 id de la cuenta
-          accAlias: g.accAlias,     // 👈 alias de la cuenta
-          sum: g.sum,               // 👈 total del día para esa cuenta
-          accountColor: g.accColor,
-          dateYMD: g.date,         // 👈 fecha (YYYY-MM-DD) para navegación
-        },
-      };
-    });
+    return Array.from(grouped.values()).map(g => ({
+      id: `${g.date}__${g.accId}`,
+      title: `${g.accAlias}: ${g.sum.toLocaleString("es-ES", { minimumFractionDigits: 2 })}€`,
+      start: g.date,
+      allDay: true,
+      backgroundColor: g.accColor,
+      borderColor: g.accColor,
+      textColor: "#fff",
+      extendedProps: {
+        group: true,
+        accId: g.accId,
+        accAlias: g.accAlias,
+        sum: g.sum,
+        accountColor: g.accColor,
+        dateYMD: g.date,
+      },
+    }));
   }
 
-  // ---- opciones filtros ----
+  // opciones filtros
   const accountOptions = useMemo(() => {
     const m = new Map();
     for (const e of allEvents) {
@@ -297,114 +419,50 @@ export function CalendarPage() {
       return { value: String(i + 1), label: label[0].toUpperCase() + label.slice(1) };
     }), []);
 
-  // ---- efectos ----
-  // === Refresco visual inmediato cuando cambian los totales ===
-  useEffect(() => {
-    const cal = ref.current?.getApi();
-    if (!cal) return;
-
-    queueMicrotask(() => {
-      console.log("🔄 Refrescando calendario (updateSize)");
-      cal.updateSize();
-    });
-  }, [dayTotals]);
-  
+  /* ===== efectos ===== */
   useEffect(() => { loadAll(); }, []);
   useEffect(() => { setEvents(projectForCalendar(allEvents, filters)); }, [filters, allEvents]);
 
-  // === Calcular totales por día (con logs) ===
   useEffect(() => {
     const map = new Map();
     const list = filterBaseForTotals(allEvents, filters);
-
     for (const e of list) {
-      const ymd = e.start; // YYYY-MM-DD
+      const ymd = toLocalYMD(e.start);
       const amtRaw = Number(e._amount ?? e.extendedProps?.amount ?? 0) || 0;
       const amt = SUM_ABSOLUTE ? Math.abs(amtRaw) : amtRaw;
       if (!ymd || !amt) continue;
       map.set(ymd, (map.get(ymd) || 0) + amt);
     }
-
-    console.groupCollapsed("🧮 Totales calculados");
-    for (const [k, v] of map.entries()) {
-      console.log("→", k, "=", v);
-    }
-    console.groupEnd();
-
     setDayTotals(map);
+
+    // 👇 fuerza que se re-ejecute dayCellDidMount
+    setCalKey(k => k + 1);
   }, [allEvents, filters]);
-  
-  // 👇 Forzar repaint de las celdas cuando cambian los totales
-  useEffect(() => {
-    console.log("🔁 Re-render de FullCalendar (key) tras actualizar dayTotals");
-    setCalKey(k => k + 1); // fuerza que React remonte el calendario
-  }, [dayTotals]);
 
 
-  /*// === Forzar refresco visual cuando cambian los totales ===
-  useEffect(() => {
-    const cal = ref.current?.getApi();
-    if (!cal) return;
-
-    // Esperamos un microtick para que FullCalendar tenga sus celdas listas
-    queueMicrotask(() => {
-      cal.updateSize(); // 🔄 fuerza re-render del grid sin desmontar nada
-    });
-  }, [dayTotals]);*/
-
-
-    // Mover el calendario cuando cambian Mes/Año del filtro
-  useEffect(() => {
-    const apiCal = ref.current?.getApi();
-    if (!apiCal) return;
-
-    const { month, year } = filters;
-
-    if (year || month) {
-      const d = apiCal.getDate();                 // fecha actual de la vista
-      const targetYear = year ? Number(year) : d.getFullYear();
-      const targetMonth = month ? Number(month) - 1 : d.getMonth();
-      apiCal.gotoDate(new Date(targetYear, targetMonth, 1)); // 👈 navega a la vista correcta
-    } else {
-      // Sin mes/año => volvemos a hoy
-      apiCal.today();
-    }
-  }, [filters.month, filters.year]);
-
-
-
-  // ---- click evento: si agrupado => "redirigir" (filtrar por cuenta + ir a la fecha); si individual => eliminar ----
+  // click evento (ignora clics en el botón/menú)
   const onEventClick = async (info) => {
+    const t = info.jsEvent?.target;
+    if (t && t.closest?.(".evt-ctrl")) return;
+
     try {
       const ev = info.event;
       const xp = ev.extendedProps || {};
 
-      // Caso AGRUPADO ("Todas"): redirigir a la cuenta y al día para ver el detalle
       if (xp.group) {
         const accId = xp.accId;
-        // usamos dateYMD si lo tenemos, si no, ev.startStr
         const dateStr = xp.dateYMD || (ev.startStr ? ev.startStr.slice(0, 10) : undefined);
-        if (accId) {
-          setFilters((f) => ({
-            ...f,
-            accountId: accId,
-          }));
-        }
+        if (accId) setFilters((f) => ({ ...f, accountId: accId }));
         const apiCal = ref.current?.getApi();
-        if (apiCal && dateStr) {
-          // esperamos al render del nuevo feed
-          requestAnimationFrame(() => apiCal.gotoDate(dateStr));
-        }
+        if (apiCal && dateStr) requestAnimationFrame(() => apiCal.gotoDate(dateStr));
         return;
       }
 
-      // Caso INDIVIDUAL: eliminar (como ya lo tenías)
-      const evx = xp;
-      const id = ev.id || evx.cashflowId || evx.id || evx._id;
+      const id = ev.id || xp.cashflowId || xp.id || xp._id;
       if (!id) return;
 
-      const nombre = evx?.counterparty?.name || evx?.accountAlias || "—";
-      const ok = confirm(`¿Eliminar vencimiento de ${nombre} por ${Number(evx?.amount || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 })}€?`);
+      const nombre = xp?.counterparty?.name || xp?.accountAlias || "—";
+      const ok = confirm(`¿Eliminar vencimiento de ${nombre} por ${Number(xp?.amount || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 })}€?`);
       if (!ok) return;
 
       await api.delete(`/cashflows/${id}`);
@@ -415,139 +473,133 @@ export function CalendarPage() {
     }
   };
 
-    
+  // Totales en celdas
   const dayCellDidMount = React.useCallback(
     (info) => {
-      // ⚠️ Tomamos la fecha local directa (no UTC)
       const localYMD = [
         info.date.getFullYear(),
         String(info.date.getMonth() + 1).padStart(2, "0"),
         String(info.date.getDate()).padStart(2, "0"),
       ].join("-");
-
       const total = dayTotals.get(localYMD);
 
-      console.log("📅 Pintando celda:", localYMD, "→ total:", total);
-
-      // elimina anteriores si existen
       const prev = info.el.querySelector(".fc-day-total");
       if (prev) prev.remove();
-
       if (!total) return;
 
-      // crea el nodo
       const node = document.createElement("div");
       node.className = "fc-day-total";
-      node.textContent = `Total: ${total.toLocaleString("es-ES", {
-        minimumFractionDigits: 2,
-      })}€`;
-
+      node.textContent = `Total: ${total.toLocaleString("es-ES", { minimumFractionDigits: 2 })}€`;
       Object.assign(node.style, {
-        position: 'absolute',
-        left: '6px',
-        bottom: '6px',
-        fontSize: '14px',
-        fontWeight: '600',
-        lineHeight: '1',
-        padding: '2px 6px',
-        borderRadius: '4px',
-        pointerEvents: 'none',
+        position: "absolute",
+        left: "6px",
+        bottom: "6px",
+        fontSize: "14px",
+        fontWeight: "600",
+        lineHeight: "1",
+        padding: "2px 6px",
+        borderRadius: "4px",
+        pointerEvents: "none",
         zIndex: 6,
-        // usar variables de Chakra si existen en :root; fallback a negro/blanco
-        
-        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-        whiteSpace: 'nowrap',
+        boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+        whiteSpace: "nowrap",
       });
-
       if (getComputedStyle(info.el).position === "static") {
         info.el.style.position = "relative";
       }
-
       info.el.appendChild(node);
     },
     [dayTotals]
   );
 
-
-
-
-
-  // ---- mejor UX al pasar por eventos agrupados ----
-  const eventDidMount = (info) => {
-    const xp = info.event.extendedProps || {};
-    if (xp.group) {
-      info.el.style.cursor = "pointer";
-      info.el.title = `Ver detalle de ${xp.accAlias} en ${xp.dateYMD}`;
-    }
-  };
-
-
-  // Render personalizado del contenido del evento
+  /* ===== Render de evento ===== */
   function renderEventContent(arg) {
     const ev = arg.event;
     const xp = ev.extendedProps || {};
     const isGroup = xp.group === true;
-    
- 
-    // AGRUPADO: mostrar alias + suma + hint
+
     if (isGroup) {
-      const sumTxt = Number(xp.sum || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
+      const sumTxt = Number(xp.sum || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
       return (
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 2, justifyContent: 'space-between', alignItems: 'center', padding: '0 2px 0 2px' }}>
-          <div style={{ fontWeight: 700 }}>{xp.accAlias || 'Cuenta'}</div>
+        <div style={{ display:"flex", flexDirection:"row", gap:2, justifyContent:"space-between", alignItems:"center", padding:"0 2px" }}>
+          <div style={{ fontWeight: 700 }}>{xp.accAlias || "Cuenta"}</div>
           <div style={{ fontSize: 15, fontWeight: 550 }}>{sumTxt}€</div>
         </div>
       );
     }
 
-    // INDIVIDUAL: proveedor + importe + badge estado + checkbox
-    const prov = xp?.counterparty?.name || xp?.accountAlias || '—';
-    const amount = Number(xp?.amount || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
-    const ui = xp?.uiStatus; // 'pending' | 'overdue' | 'paid'
+    // Individual
+    const prov   = xp?.counterparty?.name || xp?.accountAlias || "—";
+    const amount = Number(xp?.amount || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
+    const ui     = xp?.uiStatus; // 'pending' | 'overdue' | 'paid' | 'unpaid' 
+    const ymd    = ev.startStr?.slice(0,10);
 
     const badgeStyle = {
-      fontSize: 10, padding: '2px 6px', 
-      borderRadius: 6, 
+      fontSize: 10,
+      padding: "2px 6px",
+      borderRadius: 6,
       marginLeft: 6,
-      background: ui === 'paid' ? '#9ca3af' : ui === 'overdue' ? '#f59e0b' : 'rgba(255,255,255,.25)',
-      color: '#fff'
+      background: ui === "paid" ? "#9ca3af"
+                : ui === "overdue" ? "#f59e0b"
+                : ui === "unpaid" ? "#ef4444"
+                : "transparent",
+      color: "#fff"
     };
 
-    const onTogglePaid = async (e) => {
-      e.stopPropagation(); // no abrir modal/selección del día
-      const id = ev.id || xp.cashflowId;
+    const handleStatusChange = async (next) => {
+      const id = ev.id || xp.cashflowId || xp.id || xp._id;
       if (!id) return;
-      const next = ui === 'paid' ? 'pending' : 'paid';
+
+      // 1) Optimista: actualiza en memoria
+      setAllEvents(prev => prev.map(e => {
+        if (e.id !== id) return e;
+        const persistedNext = next;
+        const uiNext = computeUiStatus(persistedNext, ymd);
+        const ext = e.extendedProps || {};
+        return {
+          ...e,
+          _status: persistedNext,
+          _ui: uiNext,
+          extendedProps: { ...ext, status: persistedNext, uiStatus: uiNext }
+        };
+      }));
+
+      // 2) API (si falla, recupera desde servidor)
       try {
-        await setCashflowStatus(id, next); // PUT /cashflows/:id { status: 'paid'|'pending' }
-        
-        await loadAll();
+        // Si tu helper espera (id, payload) cámbialo por: await setCashflowStatus(id, { status: next });
+        await setCashflowStatus(id, next);
       } catch (err) {
         console.error(err);
-        alert('No se pudo actualizar el estado.');
+        alert("No se pudo actualizar el estado.");
+        // deshacer con truth desde backend
+        loadAll();
       }
     };
 
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:2, justifyContent:"space-between", padding:"0 2px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, justifyContent:"space-between" }}>
+          <span style={{ fontWeight: 600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            {prov}
+          </span>
 
-    
+          {/* No mostrar badge si pending */}
+          {ui && ui !== "pending" && (
+            <span style={badgeStyle}>
+              {ui === "paid" ? "Pagado"
+                : ui === "overdue" ? "Vencido"
+                : ui === "unpaid" ? "Impagado" : ""
+}
+            </span>
+          )}
 
-return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 2, justifyContent: "space-between", padding: "0 2px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "space-between" }}>
-          <input
-            type="checkbox"
-            checked={ui === "paid"}
-            onChange={onTogglePaid}
-            onClick={(e) => e.stopPropagation()}
-            style={{ cursor: "pointer" }}
-            title={ui === "paid" ? "Marcar como pendiente" : "Marcar como pagado"}
-          />
-          <span style={{ fontWeight: 600 }}>{prov}</span>
-          {ui && <span style={badgeStyle}>
-            {ui === "paid" ? "Pagado" : ui === "overdue" ? "Vencido" : ""}
-          </span>}
+          {/* Botón menú estado */}
+          <EventStatusMenu value={ui || "pending"} onChange={handleStatusChange} />
         </div>
-        <div style={{ fontSize: 14, display: "flex", alignItems: "center", justifyContent:"center", fontWeight: 600 }}>{amount}€</div>
+
+        <div style={{ fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:600 }}>
+          {amount}€
+        </div>
       </div>
     );
   }
@@ -556,101 +608,88 @@ return (
     <div className="page">
       <div
         className="card"
-        style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}
+        style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"center", justifyContent:"space-between" }}
       >
         <Button
           bg={buttonBg}
           color={buttonColor}
           _hover={{ bg: buttonHover }}
-          onClick={() => {
-            setSelectedDate(null);
-            setOpen(true);
-          }}
+          onClick={() => { setSelectedDate(null); setOpen(true); }}
         >
           + Nuevo vencimiento
         </Button>
 
-        <label style={{ gap: 10, display: "flex", alignItems: "center" }}>
+        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
           Cuenta:
           <select
             value={filters.accountId}
             onChange={(e) => setFilters((f) => ({ ...f, accountId: e.target.value }))}
           >
             <option value="">Todas</option>
-            {accountOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
+            {useMemo(() => accountOptions, [accountOptions]).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
         </label>
 
-        <label style={{ gap: 10, display: "flex", alignItems: "center" }}>
+        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
           Categoría:
           <select
             value={filters.categoryId}
             onChange={(e) => setFilters((f) => ({ ...f, categoryId: e.target.value }))}
           >
             <option value="">Todas</option>
-            {categoryOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
+            {useMemo(() => categoryOptions, [categoryOptions]).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
         </label>
 
-        <label style={{ gap: 10, display: "flex", alignItems: "center" }}>
+        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
           Mes:
           <select
             value={filters.month}
             onChange={(e) => setFilters((f) => ({ ...f, month: e.target.value }))}
           >
             <option value="">Todos</option>
-            {monthOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
+            {useMemo(() => monthOptions, [monthOptions]).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
         </label>
 
-        <label style={{ gap: 10, display: "flex", alignItems: "center" }}>
+        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
           Año:
           <select
             value={filters.year}
             onChange={(e) => setFilters((f) => ({ ...f, year: e.target.value }))}
           >
             <option value="">Todos</option>
-            {yearOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
+            {useMemo(() => yearOptions, [yearOptions]).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
         </label>
 
-        <label style={{ gap: 10, display: "flex", alignItems: "center" }}>
+        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
           Estado:
-            <select
-              value={filters.status}
-              onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
-            >
-              <option value="">Todos</option>
-              <option value="pending">Pendiente</option>
-              <option value="overdue">Vencido</option>
-              <option value="paid">Pagado</option>
-            </select>
+          <select
+            value={filters.status}
+            onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
+          >
+            <option value="">Todos</option>
+            <option value="pending">Pendiente</option>
+            <option value="overdue">Vencido</option>
+            <option value="unpaid">Impagado</option>
+            <option value="paid">Pagado</option>
+          </select>
         </label>
 
         <Button
           bg={buttonBg}
           color={buttonColor}
           _hover={{ bg: buttonHover }}
-          className="btn"
-          onClick={() =>
-            setFilters({ accountId: "", categoryId: "", month: "", year: "" })
-          }
+          onClick={() => setFilters({ accountId:"", categoryId:"", month:"", year:"", status:"" })}
         >
           Limpiar filtros
         </Button>
@@ -660,21 +699,15 @@ return (
         {accounts.length > 0 && (
           <div
             className="card"
-            style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", width: "100%", padding: "2px 0 2px 0" }}
+            style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", width:"100%", padding:"2px 0" }}
           >
             <strong>Leyenda cuentas:</strong>
             {accounts.map((a) => (
-              <span
-                key={a._id}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-              >
+              <span key={a._id} style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
                 <span
                   style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: 3,
-                    background: a.color || "#999",
-                    border: "1px solid #ddd",
+                    width:12, height:12, borderRadius:3,
+                    background: a.color || "#999", border:"1px solid #ddd",
                   }}
                 />
                 <span>{a.alias}</span>
@@ -683,56 +716,43 @@ return (
           </div>
         )}
 
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom:0
-        }}>
-          <h2 style={{ marginTop: 8, fontSize: 24, fontWeight: 800 }}>{calTitle}</h2>
-          
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", marginBottom:0 }}>
+          <h2 style={{ marginTop:8, fontSize:24, fontWeight:800 }}>{calTitle}</h2>
         </div>
 
         <FullCalendar
-          key={calKey}        // 👈 fuerza remonte controlado
+          key={calKey}
           ref={ref}
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           locale={esLocale}
           events={events}
           eventContent={renderEventContent}
-          eventDidMount={eventDidMount}
+          eventDidMount={(info)=>{ const xp = info.event.extendedProps || {}; if (xp.group) { info.el.style.cursor = "pointer"; info.el.title = `Ver detalle de ${xp.accAlias} en ${xp.dateYMD}`; } }}
           eventClick={onEventClick}
           dayCellDidMount={dayCellDidMount}
-          dateClick={(info) => {
-            setSelectedDate(info.dateStr);
-            setOpen(true);
-          }}
-          headerToolbar={{ left: '', center: '', right: 'prev,next today' }}
+          dateClick={(info) => { setSelectedDate(info.dateStr); setOpen(true); }}
+          headerToolbar={{ left:"", center:"", right:"prev,next today" }}
           datesSet={(arg) => {
             const mid = new Date((arg.start.getTime() + arg.end.getTime()) / 2);
-            const month = mid.toLocaleString('es-ES', { month: 'long' });
-            setCalTitle(`${month.charAt(0).toUpperCase() + month.slice(1)} ${mid.getFullYear()}`);
+            const month = mid.toLocaleString("es-ES", { month: "long" });
+            const newTitle = `${month.charAt(0).toUpperCase() + month.slice(1)} ${mid.getFullYear()}`;
+            setCalTitle(t => t === newTitle ? t : newTitle);
           }}
           height="auto"
-          expandRows={true}         // 👈 fuerza que las filas se expandan
-          dayMaxEventRows={false}   // 👈 evita el límite de altura
-          dayMaxEvents={false}      // 👈 evita el botón "+X más"
-          fixedWeekCount={false}    // 👈 evita semanas vacías
+          expandRows
+          dayMaxEventRows={false}
+          dayMaxEvents={false}
+          fixedWeekCount={false}
         />
-
       </div>
 
       {open && (
         <NewForecastModal
           date={selectedDate}
-          onClose={() => {
-            setOpen(false);
-            loadAll();
-          }}
+          onClose={() => { setOpen(false); loadAll(); }}
         />
       )}
     </div>
   );
 }
-

@@ -163,6 +163,7 @@ export const clearAll = async (_req, res) => {
 // === Estado UI derivado (pendiente | vencido | pagado) ===
 const computeUiStatus = (doc) => {
   if (doc.status === 'paid') return 'paid';
+  if (doc.status === 'unpaid')  return 'unpaid';
   // compara solo por Y-M-D local
   const todayYMD = toYMD(new Date());
   const docYMD   = toYMD(new Date(doc.date));
@@ -265,7 +266,7 @@ export const updateStatus = async (req, res) => {
   try {
     const { id } = req.params
     const { status } = req.body
-    const allowed = ['pending','paid','cancelled']
+    const allowed = ['pending','paid','cancelled', 'unpaid']
     if (!allowed.includes(status)) {
       return res.status(400).json({ error: 'INVALID_STATUS' })
     }

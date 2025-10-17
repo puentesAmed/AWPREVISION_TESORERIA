@@ -85,6 +85,7 @@ const styles = {
         borderWidth: "1px",
         fontSize: "12px",
         lineHeight: "1.2",
+        cursor: 'default',
       },
       ".fc .fc-daygrid-event .fc-event-title": { whiteSpace: "normal" },
       ".fc .fc-daygrid-day-frame": { minHeight: "100px", height: "auto !important" },
@@ -101,6 +102,11 @@ const styles = {
         pointerEvents: "none",
         textAlign: "left",
       },
+      // theme.js -> styles.global
+      
+      '.fc .fc-daygrid-event .fc-event-main': { pointerEvents: 'auto' },
+      '.fc .fc-daygrid-event .fc-event-main *': { pointerEvents: 'auto' },
+
     };
   },
 };
