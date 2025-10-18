@@ -172,7 +172,7 @@ export function CalendarPage() {
 
   // Totales por día
   const [dayTotals, setDayTotals] = useState(new Map());
-  const SUM_ABSOLUTE = true;
+  const SUM_ABSOLUTE = false;
 
   // Botones
   const buttonBg = useColorModeValue("brand.500", "accent.500");
