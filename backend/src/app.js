@@ -83,6 +83,12 @@ const isAllowed = (origin) => {
 };
 
 app.use(cors({
+  origin: (origin, cb) => isAllowed(origin) ? cb(null, true) : cb(new Error('Not allowed by CORS')),
+  credentials: true,
+  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization']
+}));
+/*app.use(cors({
   origin: (origin, cb) => {
     if (!origin || ORIGINS.includes(origin)) return cb(null, true)
     return cb(new Error('Not allowed by CORS'))
@@ -90,7 +96,7 @@ app.use(cors({
   credentials: true,
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization']
-}))
+}))*/
 app.options('*', cors())
 
 app.use(helmet())
