@@ -74,6 +74,14 @@ app.set('trust proxy', 1)
 
 const ORIGINS = env.CORS_ORIGINS
 
+const isAllowed = (origin) => {
+  if (!origin) return true;
+  if (ORIGINS.includes(origin)) return true;
+  // permitir permalinks del sitio en Netlify:
+  if (/--prevtesorejot\.netlify\.app$/.test(origin)) return true;
+  return false;
+};
+
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin || ORIGINS.includes(origin)) return cb(null, true)
