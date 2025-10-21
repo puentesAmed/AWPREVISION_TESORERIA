@@ -15,14 +15,6 @@ import categoriesRoutes from './routes/categories.routes.js'
 
 const ORIGINS = env.CORS_ORIGINS
 
-const app = express()
-app.use(helmet())
-/*app.use(cors({ 
-    origin: env.CORS_ORIGIN, 
-    credentials: true,
-    methods: ["GET","POST","PUT", "PATCH","DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"]
-}))*/
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin || ORIGINS.includes(origin)) return cb(null, true)
@@ -32,6 +24,16 @@ app.use(cors({
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization']
 }))
+
+const app = express()
+app.use(helmet())
+/*app.use(cors({ 
+    origin: env.CORS_ORIGIN, 
+    credentials: true,
+    methods: ["GET","POST","PUT", "PATCH","DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+}))*/
+
 app.options('*', cors())
 app.use(express.json({ limit: '1mb' }))
 app.use(morgan('dev'))
