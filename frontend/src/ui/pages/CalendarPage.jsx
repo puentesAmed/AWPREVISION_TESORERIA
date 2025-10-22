@@ -688,10 +688,7 @@ function renderEventContentList(arg) {
   return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%" }}>
       <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
-        <span style={{
-          width:8, height:8, borderRadius:999,
-          background: xp.accountColor || ev.backgroundColor || "#999"
-        }}/>
+        
         <span style={{
           minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:600
         }}>
