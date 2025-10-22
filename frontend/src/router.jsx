@@ -1,5 +1,5 @@
 import React from 'react'
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter } from 'react-router-dom'
 import { AppLayout } from './ui/layouts/AppLayout.jsx'
 import { LoginPage } from './ui/pages/LoginPage.jsx'
 import { CalendarPage } from './ui/pages/CalendarPage.jsx'
@@ -8,7 +8,8 @@ import { AccountsPage } from './ui/pages/AccountsPage.jsx'
 import { ImportPage } from './ui/pages/ImportPage.jsx'
 import { SettingsPage } from './ui/pages/SettingsPage.jsx'
 import { DashboardPage } from './ui/pages/DashboardPage.jsx'
-import { RequireAuth } from './ui/RequiereAuth.jsx';
+import { RequireAuth } from './ui/RequiereAuth.jsx'
+import { ProtectedLayout } from './ui/ProtectedLayout.jsx'
 
 
 
@@ -16,11 +17,17 @@ import { RequireAuth } from './ui/RequiereAuth.jsx';
 export const router = createBrowserRouter([
     //{ path: '/', element: <Navigate to="/dashboard" replace /> },
     { path: '/login', element: <LoginPage/> },
-    { path: '/', element: <AppLayout/>,
+    { 
+        path: '/', 
+        element: (
+        <ProtectedLayout>
+            <AppLayout/>
+        </ProtectedLayout>
+        ),
         children: [
             { path: 'calendar', element:<CalendarPage/> },
             { path: '/dashboard', element: <DashboardPage/> },
-
+            { path: 'totals', element:<TotalsPage/> },
             { path: '/accounts', element:
                 <RequireAuth allowedRoles={['admin']}>
                     <AccountsPage/>
@@ -37,11 +44,10 @@ export const router = createBrowserRouter([
                     <SettingsPage/>
                 </RequireAuth> 
             },            
-            { path: 'totals', element:<TotalsPage/> },
+            
             { index: true, element: <CalendarPage/> },
             
-
-        ]
+        ],
     
-    }
+    },
 ])
