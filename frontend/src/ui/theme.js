@@ -90,18 +90,38 @@ const styles = {
       ".fc .fc-daygrid-event .fc-event-title": { whiteSpace: "normal" },
       ".fc .fc-daygrid-day-frame": { minHeight: "100px", height: "auto !important" },
       ".fc-daygrid-day-events": { display: "flex", flexDirection: "column", gap: "2px" },
-      ".fc-daygrid-day .fc-day-total": {
+      ".fc .fc-daygrid-day .fc-day-total": (p) => ({
         position: "relative !important",
         alignSelf: "flex-end",
         marginTop: "4px",
         fontSize: "11px",
-        fontWeight: "600",
-        color: isLight ? "#111" : "#f3f4f6",
+        fontWeight: 600,
+        color: p.colorMode === "light" ? "#111" : "#f3f4f6",
         padding: "2px 5px",
         borderRadius: "4px",
         pointerEvents: "none",
         textAlign: "left",
+        background: p.colorMode === "light" ? "rgba(255,255,255,.9)" : "rgba(17,24,39,.65)",
+        zIndex: 6,
+      }),
+
+      ".fc .fc-list, .fc .fc-list-table": {
+        background: "transparent",
+        borderColor: "transparent",
       },
+      ".fc .fc-list-day-cushion": (p) => ({
+        borderRadius: "12px",
+        margin: "6px 8px",
+        background: p.colorMode === "light" ? "white" : "var(--chakra-colors-neutral-800)",
+        border: "1px solid",
+        borderColor: p.colorMode === "light" ? "var(--chakra-colors-neutral-200)" : "var(--chakra-colors-neutral-700)",
+      }),
+      ".fc .fc-list-event": {
+        whiteSpace: "normal",
+        wordBreak: "break-word",
+      },
+
+
       // theme.js -> styles.global
       
       '.fc .fc-daygrid-event .fc-event-main': { pointerEvents: 'auto' },

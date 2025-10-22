@@ -6,11 +6,12 @@ import esLocale from "@fullcalendar/core/locales/es";
 import { getCalendar } from "@/api/forecastsService.js";
 import { NewForecastModal } from "@/ui/components/NewForecastModal.jsx";
 import { api } from "@/lib/api.js";
-import { Button, useColorModeValue } from "@chakra-ui/react";
+import { Button, useColorModeValue, useBreakpointValue } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { getAccounts } from "@/api/accountsService.js";
 import { setCashflowStatus } from "@/api/cashflowsService.js";
 import { createPortal } from "react-dom";
+import listPlugin from "@fullcalendar/list";
 
 /* ========= Utils ========= */
 const toISODate = (v) => {
@@ -169,6 +170,9 @@ export function CalendarPage() {
  
   const [calKey, setCalKey] = useState(0);
 
+  const isMobile = useBreakpointValue({ base: true, md: false });
+
+
 
   // Totales por día
   const [dayTotals, setDayTotals] = useState(new Map());
@@ -303,10 +307,7 @@ export function CalendarPage() {
     if (f.month) list = list.filter(e => (new Date(e.start + "T00:00:00Z").getUTCMonth() + 1) === Number(f.month));
     if (f.year) list = list.filter(e => new Date(e.start + "T00:00:00Z").getUTCFullYear() === Number(f.year));
 
-    /*if (f.status) {
-      list = list.filter(e => (e._status || e.extendedProps?.status) === f.status);
-    }*/
-
+ 
       if (f.status) {
         // filtra por el estado *visual* (pending | overdue | paid | unpaid)
         list = list.filter(e => {
@@ -579,7 +580,14 @@ export function CalendarPage() {
     return (
       <div style={{ display:"flex", flexDirection:"column", gap:2, justifyContent:"space-between", padding:"0 2px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:6, justifyContent:"space-between" }}>
-          <span style={{ fontWeight: 600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          <span style={{ 
+            fontWeight: 600,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: isMobile ? "clip" : "ellipsis",
+            whiteSpace: isMobile ? "normal" : "nowrap",
+            wordBreak: "break-word",
+            }}>
             {prov}
           </span>
 
@@ -723,8 +731,9 @@ export function CalendarPage() {
         <FullCalendar
           key={calKey}
           ref={ref}
-          plugins={[dayGridPlugin, interactionPlugin]}
-          initialView="dayGridMonth"
+          plugins={[dayGridPlugin, interactionPlugin, listPlugin]}
+          initialView={isMobile ? "listMonth" : "dayGridMonth"}
+          titleFormat={isMobile ? { month: "short", year: "numeric" } : { month: "long", year: "numeric" }}
           locale={esLocale}
           events={events}
           eventContent={renderEventContent}
@@ -740,9 +749,10 @@ export function CalendarPage() {
             setCalTitle(t => t === newTitle ? t : newTitle);
           }}
           height="auto"
-          expandRows
-          dayMaxEventRows={false}
-          dayMaxEvents={false}
+          expandRows={!isMobile}
+          dayHeaderFormat={isMobile ? { weekday: "short" } : { weekday: "long" }}
+          dayMaxEventRows={isMobile ? false : 3}
+          dayMaxEvents={isMobile ? false : true}
           fixedWeekCount={false}
         />
       </div>
