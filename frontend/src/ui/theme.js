@@ -121,6 +121,11 @@ const styles = {
         wordBreak: "break-word",
       },
 
+      ".fc .fc-list-event *": { pointerEvents: "auto" },
+      ".fc .fc-list-event-time": { display: "none" },   // oculta la celda “Todo el día”
+     
+
+
 
       // theme.js -> styles.global
       

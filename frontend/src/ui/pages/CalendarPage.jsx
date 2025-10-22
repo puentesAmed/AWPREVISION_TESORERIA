@@ -612,6 +612,44 @@ export function CalendarPage() {
     );
   }
 
+  function renderEventContentList(arg) {
+    const ev = arg.event;
+    const xp = ev.extendedProps || {};
+    const prov   = xp?.counterparty?.name || xp?.accountAlias || "—";
+    const amount = Number(xp?.amount || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
+    const ui     = xp?.uiStatus;
+    const ymd    = ev.startStr?.slice(0,10);
+
+    const badgeStyle = {
+      fontSize: 12, padding:"2px 6px", borderRadius: 6, marginLeft: 8,
+      background: ui==="paid" ? "#9ca3af" : ui==="overdue" ? "#f59e0b" : ui==="unpaid" ? "#ef4444" : "transparent",
+      color:"#fff"
+    };
+
+    const handleStatusChange = async (next) => {
+      const id = ev.id || xp.cashflowId || xp.id || xp._id;
+      if (!id) return;
+      setAllEvents(prev => prev.map(e => {
+        if (e.id !== id) return e;
+        const uiNext = computeUiStatus(next, ymd);
+        const ext = e.extendedProps || {};
+        return { ...e, _status: next, _ui: uiNext, extendedProps: { ...ext, status: next, uiStatus: uiNext } };
+      }));
+      try { await setCashflowStatus(id, next); } catch { loadAll(); }
+    };
+
+    return (
+      <div style={{ display:"flex", alignItems:"center", gap:10, width:"100%" }}>
+        <div style={{ fontWeight:600, flex:1, minWidth:0, wordBreak:"break-word" }}>{prov}</div>
+        {ui && ui!=="pending" && <span style={badgeStyle}>
+          {ui==="paid"?"Pagado":ui==="overdue"?"Vencido":ui==="unpaid"?"Impagado":""}
+        </span>}
+        <div style={{ fontWeight:700 }}>{amount}€</div>
+        <EventStatusMenu value={ui || "pending"} onChange={handleStatusChange} />
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <div
@@ -729,40 +767,59 @@ export function CalendarPage() {
         </div>
 
         <FullCalendar
-          //key={`${calKey}-${isMobile ? 'm' : 'd'}`}
           key={`cal-${isMobile ? 'm' : 'd'}-${calKey}`}
-
           ref={ref}
           plugins={[dayGridPlugin, interactionPlugin, listPlugin]}
-          titleFormat={isMobile ? { month: "short", year: "numeric" } : { month: "long", year: "numeric" }}
           locale={esLocale}
-          events={events}
-          //eventContent={renderEventContent}
-          eventContent={(arg) =>
-            arg.view.type.startsWith('dayGrid') ? renderEventContent(arg) : undefined
-          }
-          eventDidMount={(info)=>{ const xp = info.event.extendedProps || {}; if (xp.group) { info.el.style.cursor = "pointer"; info.el.title = `Ver detalle de ${xp.accAlias} en ${xp.dateYMD}`; } }}
-          eventClick={onEventClick}
-          dayCellDidMount={isMobile ? undefined : dayCellDidMount}
 
+          /* Vistas y cabecera */
+          initialView={isMobile ? "listMonth" : "dayGridMonth"}
+          headerToolbar={{ left: "", center: "", right: "prev,next today" }}
+          titleFormat={isMobile ? { month: "short", year: "numeric" } : { month: "long", year: "numeric" }}
+          dayHeaderFormat={isMobile ? { weekday: "short" } : { weekday: "long" }}
+          fixedWeekCount={false}
+
+          /* Datos */
+          events={events}
+          eventContent={(arg) =>
+            arg.view.type.startsWith("list")
+              ? renderEventContentList(arg)
+              : renderEventContent(arg)
+          }
+
+          /* Interacciones */
+          eventClick={onEventClick}
           dateClick={(info) => { setSelectedDate(info.dateStr); setOpen(true); }}
-          headerToolbar={{ left:"", center:"", right:"prev,next today" }}
+          eventDidMount={(info) => {
+            const xp = info.event.extendedProps || {};
+            if (xp.group) {
+              info.el.style.cursor = "pointer";
+              info.el.title = `Ver detalle de ${xp.accAlias} en ${xp.dateYMD}`;
+            }
+          }}
+          dayCellDidMount={isMobile ? undefined : dayCellDidMount}
           datesSet={(arg) => {
             const mid = new Date((arg.start.getTime() + arg.end.getTime()) / 2);
             const month = mid.toLocaleString("es-ES", { month: "long" });
             const newTitle = `${month.charAt(0).toUpperCase() + month.slice(1)} ${mid.getFullYear()}`;
-            setCalTitle(t => t === newTitle ? t : newTitle);
+            setCalTitle((t) => (t === newTitle ? t : newTitle));
           }}
-          initialView={isMobile ? "listMonth" : "dayGridMonth"}
-          listDayFormat={{ weekday: "long", day: "numeric" }}
-          listDaySideFormat={false}
+
+          /* Layout */
+          height="auto"
           expandRows={!isMobile}
           dayMaxEventRows={isMobile ? false : 3}
           dayMaxEvents={isMobile ? false : true}
-          height="auto"
-          dayHeaderFormat={isMobile ? { weekday: "short" } : { weekday: "long" }}
-          fixedWeekCount={false}
+
+          /* List view: ocultar “Todo el día” */
+          displayEventTime={isMobile ? false : true}
+          allDayText=""
+
+          /* List view: formato de día */
+          listDayFormat={{ weekday: "long", day: "numeric" }}
+          listDaySideFormat={false}
         />
+
       </div>
 
       {open && (
