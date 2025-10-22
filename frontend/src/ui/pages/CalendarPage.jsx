@@ -729,17 +729,17 @@ export function CalendarPage() {
         </div>
 
         <FullCalendar
-          key={calKey}
+          key={`${calKey}-${isMobile ? 'm' : 'd'}`}
           ref={ref}
           plugins={[dayGridPlugin, interactionPlugin, listPlugin]}
-          initialView={isMobile ? "listMonth" : "dayGridMonth"}
           titleFormat={isMobile ? { month: "short", year: "numeric" } : { month: "long", year: "numeric" }}
           locale={esLocale}
           events={events}
           eventContent={renderEventContent}
           eventDidMount={(info)=>{ const xp = info.event.extendedProps || {}; if (xp.group) { info.el.style.cursor = "pointer"; info.el.title = `Ver detalle de ${xp.accAlias} en ${xp.dateYMD}`; } }}
           eventClick={onEventClick}
-          dayCellDidMount={dayCellDidMount}
+          dayCellDidMount={isMobile ? undefined : dayCellDidMount}
+
           dateClick={(info) => { setSelectedDate(info.dateStr); setOpen(true); }}
           headerToolbar={{ left:"", center:"", right:"prev,next today" }}
           datesSet={(arg) => {
@@ -748,11 +748,14 @@ export function CalendarPage() {
             const newTitle = `${month.charAt(0).toUpperCase() + month.slice(1)} ${mid.getFullYear()}`;
             setCalTitle(t => t === newTitle ? t : newTitle);
           }}
-          height="auto"
+          initialView={isMobile ? "listMonth" : "dayGridMonth"}
+          listDayFormat={{ weekday: "long", day: "numeric" }}
+          listDaySideFormat={false}
           expandRows={!isMobile}
-          dayHeaderFormat={isMobile ? { weekday: "short" } : { weekday: "long" }}
           dayMaxEventRows={isMobile ? false : 3}
           dayMaxEvents={isMobile ? false : true}
+          height="auto"
+          dayHeaderFormat={isMobile ? { weekday: "short" } : { weekday: "long" }}
           fixedWeekCount={false}
         />
       </div>
