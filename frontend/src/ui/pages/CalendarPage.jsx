@@ -729,13 +729,18 @@ export function CalendarPage() {
         </div>
 
         <FullCalendar
-          key={`${calKey}-${isMobile ? 'm' : 'd'}`}
+          //key={`${calKey}-${isMobile ? 'm' : 'd'}`}
+          key={`cal-${isMobile ? 'm' : 'd'}-${calKey}`}
+
           ref={ref}
           plugins={[dayGridPlugin, interactionPlugin, listPlugin]}
           titleFormat={isMobile ? { month: "short", year: "numeric" } : { month: "long", year: "numeric" }}
           locale={esLocale}
           events={events}
-          eventContent={renderEventContent}
+          //eventContent={renderEventContent}
+          eventContent={(arg) =>
+            arg.view.type.startsWith('dayGrid') ? renderEventContent(arg) : undefined
+          }
           eventDidMount={(info)=>{ const xp = info.event.extendedProps || {}; if (xp.group) { info.el.style.cursor = "pointer"; info.el.title = `Ver detalle de ${xp.accAlias} en ${xp.dateYMD}`; } }}
           eventClick={onEventClick}
           dayCellDidMount={isMobile ? undefined : dayCellDidMount}
