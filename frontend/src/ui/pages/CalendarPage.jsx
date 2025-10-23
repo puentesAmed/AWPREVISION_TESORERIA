@@ -612,7 +612,7 @@ export function CalendarPage() {
     );
   }
 
-  function renderEventContentList(arg) {
+  /*function renderEventContentList(arg) {
     const ev = arg.event;
     const xp = ev.extendedProps || {};
     const prov   = xp?.counterparty?.name || xp?.accountAlias || "—";
@@ -649,6 +649,75 @@ export function CalendarPage() {
       </div>
     );
   }
+*/
+
+function renderEventContentList(arg) {
+  const ev = arg.event;
+  const xp = ev.extendedProps || {};
+  const isGroup = xp.group === true;
+
+  if (isGroup) {
+    const sumTxt = Number(xp.sum || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
+    return (
+      <div style={{
+        display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%"
+      }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
+          
+          <strong style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            {xp.accAlias || "Cuenta"}
+          </strong>
+        </div>
+        <div style={{ fontWeight:700 }}>{sumTxt}€</div>
+        {/* No hay menú de estado para agrupados */}
+      </div>
+    );
+  }
+
+  // Eventos individuales
+  const prov   = xp?.counterparty?.name || xp?.accountAlias || "—";
+  const amount = Number(xp.amount ?? 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
+  const ui     = xp?.uiStatus;
+
+  const badgeStyle = {
+    fontSize:10, padding:"2px 6px", borderRadius:6, marginLeft:6,
+    background: ui==="paid" ? "#9ca3af" : ui==="overdue" ? "#f59e0b" : ui==="unpaid" ? "#ef4444" : "transparent",
+    color:"#fff"
+  };
+
+  return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
+        
+        <span style={{
+          minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:600
+        }}>
+          {prov}
+        </span>
+        {ui && ui!=="pending" && <span style={badgeStyle}>
+          {ui==="paid" ? "Pagado" : ui==="overdue" ? "Vencido" : "Impagado"}
+        </span>}
+      </div>
+
+      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+        <strong>{amount}€</strong>
+        <EventStatusMenu value={ui || "pending"} onChange={(next)=> {
+          // reutiliza tu handleStatusChange de la vista normal
+          const ymd = ev.startStr?.slice(0,10);
+          const id  = ev.id || xp.cashflowId || xp.id || xp._id;
+          if (!id) return;
+          setAllEvents(prev => prev.map(e => {
+            if (e.id !== id) return e;
+            const uiNext = computeUiStatus(next, ymd);
+            return { ...e, _status: next, _ui: uiNext,
+              extendedProps: { ...(e.extendedProps||{}), status: next, uiStatus: uiNext } };
+          }));
+          setCashflowStatus(id, next).catch(() => loadAll());
+        }}/>
+      </div>
+    </div>
+  );
+}
 
   return (
     <div className="page">
