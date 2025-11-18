@@ -1,33 +1,35 @@
+// src/ui/theme.js
 import { extendTheme } from "@chakra-ui/react";
 
+/* ================= Paleta ================= */
 const colors = {
   brand: { // Verde oliva
     50:"#f0f3e6",100:"#d9e0b8",200:"#c1cd8a",300:"#a8ba5c",400:"#90a72e",
     500:"#779400",600:"#5f7700",700:"#465900",800:"#2e3c00",900:"#171e00",
   },
-  accent: { // cyan petrol
+  accent: { // cian petróleo
     50:"#ecfeff",100:"#cffafe",200:"#a5f3fc",300:"#67e8f9",400:"#22d3ee",
     500:"#06b6d4",600:"#0891b2",700:"#0e7490",800:"#155e75",900:"#164e63",
   },
-  neutral: { // Grises neutros
+  neutral: { // grises neutros
     50:"#f9f9f9",100:"#efefef",200:"#dcdcdc",300:"#c9c9c9",400:"#a6a6a6",
     500:"#888888",600:"#666666",700:"#444444",800:"#222222",900:"#111111",
   },
 };
 
-// Configuración de color mode
+/* ================ Config modo color ================ */
 const config = {
   initialColorMode: "light",
   useSystemColorMode: false,
 };
 
+/* ================ Estilos globales ================ */
 const styles = {
   global: (props) => {
     const isLight = props.colorMode === "light";
     return {
       "html, body, #root": { height: "100%" },
       body: {
-        // antes usabas accent.500 en dark; mejor base oscura neutra
         bg: isLight ? "neutral.50" : "neutral.900",
         color: isLight ? "neutral.800" : "neutral.100",
         minHeight: "100vh",
@@ -85,7 +87,7 @@ const styles = {
         borderWidth: "1px",
         fontSize: "12px",
         lineHeight: "1.2",
-        cursor: 'default',
+        cursor: "default",
       },
       ".fc .fc-daygrid-event .fc-event-title": { whiteSpace: "normal" },
       ".fc .fc-daygrid-day-frame": { minHeight: "100px", height: "auto !important" },
@@ -105,6 +107,7 @@ const styles = {
         zIndex: 6,
       }),
 
+      /* Vista LIST */
       ".fc .fc-list, .fc .fc-list-table": {
         background: "transparent",
         borderColor: "transparent",
@@ -114,29 +117,35 @@ const styles = {
         margin: "6px 8px",
         background: p.colorMode === "light" ? "white" : "var(--chakra-colors-neutral-800)",
         border: "1px solid",
-        borderColor: p.colorMode === "light" ? "var(--chakra-colors-neutral-200)" : "var(--chakra-colors-neutral-700)",
+        borderColor:
+          p.colorMode === "light"
+            ? "var(--chakra-colors-neutral-200)"
+            : "var(--chakra-colors-neutral-700)",
       }),
       ".fc .fc-list-event": {
         whiteSpace: "normal",
         wordBreak: "break-word",
       },
-
       ".fc .fc-list-event *": { pointerEvents: "auto" },
-      ".fc .fc-list-event-time": { display: "none" },   // oculta la celda “Todo el día”
-     
+      ".fc .fc-list-event-time": { display: "none" }, // oculta “Todo el día”
 
+      /* Habilitar interacción dentro del evento */
+      ".fc .fc-daygrid-event .fc-event-main": { pointerEvents: "auto" },
+      ".fc .fc-daygrid-event .fc-event-main *": { pointerEvents: "auto" },
 
-
-      // theme.js -> styles.global
-      
-      '.fc .fc-daygrid-event .fc-event-main': { pointerEvents: 'auto' },
-      '.fc .fc-daygrid-event .fc-event-main *': { pointerEvents: 'auto' },
-
+      /* Inputs nativos fuera de Chakra (por si los usas) */
+      "input, select, textarea": {
+        color: isLight ? "#111111" : "#F3F4F6",
+        backgroundColor: isLight ? "#FFFFFF" : "#1F2937",
+      },
+      "input::placeholder, textarea::placeholder": {
+        color: isLight ? "#6B7280" : "#9CA3AF",
+      },
     };
   },
 };
 
-/* ===== Estilos por defecto de componentes ===== */
+/* ================ Componentes ================ */
 const components = {
   Button: {
     defaultProps: { size: "md", variant: "solid" },
@@ -155,6 +164,8 @@ const components = {
       }),
     },
   },
+
+  /* Input/Select/Textarea: texto visible en LIGHT y DARK */
   Input: {
     defaultProps: { variant: "outline", size: "md" },
     variants: {
@@ -162,6 +173,8 @@ const components = {
         field: {
           bg: p.colorMode === "light" ? "white" : "neutral.800",
           borderColor: p.colorMode === "light" ? "neutral.200" : "neutral.700",
+          color: p.colorMode === "light" ? "neutral.900" : "neutral.100", // ← texto visible
+          caretColor: p.colorMode === "light" ? "neutral.900" : "neutral.100",
           _placeholder: { color: p.colorMode === "light" ? "gray.500" : "gray.400" },
           _hover: { borderColor: p.colorMode === "light" ? "neutral.300" : "neutral.600" },
           _focus: {
@@ -180,6 +193,7 @@ const components = {
         field: {
           bg: p.colorMode === "light" ? "white" : "neutral.800",
           borderColor: p.colorMode === "light" ? "neutral.200" : "neutral.700",
+          color: p.colorMode === "light" ? "neutral.900" : "neutral.100",
           _hover: { borderColor: p.colorMode === "light" ? "neutral.300" : "neutral.600" },
           _focus: {
             borderColor: "accent.500",
@@ -196,6 +210,7 @@ const components = {
       outline: (p) => ({
         bg: p.colorMode === "light" ? "white" : "neutral.800",
         borderColor: p.colorMode === "light" ? "neutral.200" : "neutral.700",
+        color: p.colorMode === "light" ? "neutral.900" : "neutral.100",
         _hover: { borderColor: p.colorMode === "light" ? "neutral.300" : "neutral.600" },
         _focus: {
           borderColor: "accent.500",
@@ -205,20 +220,8 @@ const components = {
       }),
     },
   },
-  Table: {
-    defaultProps: { variant: "simple", size: "sm" },
-    variants: {
-      simple: (p) => ({
-        table: { borderCollapse: "separate", borderSpacing: 0 },
-        th: { bg: p.colorMode === "light" ? "neutral.100" : "neutral.800", color: "inherit" },
-        td: {
-          borderTop: "1px solid",
-          borderColor: p.colorMode === "light" ? "neutral.200" : "neutral.700",
-        },
-      }),
-    },
-  },
-  // Card “ligero” sin dependencia de shadcn
+
+  /* Card “ligero” */
   Card: {
     baseStyle: (p) => ({
       container: {
@@ -232,5 +235,5 @@ const components = {
   },
 };
 
-const theme = extendTheme({ config, colors, styles, components });
-export default theme;
+/* ================ Tema ================ */
+export const theme = extendTheme({ config, colors, styles, components });

@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ChakraProvider, ColorModeScript } from '@chakra-ui/react';
-import theme from './ui/theme.js'; // 👈 tu tema extendido
+import {theme} from './ui/theme.js'; // 👈 tu tema extendido
 import { router } from './router.jsx';
 import { UserProvider } from './context/UserContext.jsx'
 
