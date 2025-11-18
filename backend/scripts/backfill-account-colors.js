@@ -1,4 +1,3 @@
-// backend/scripts/backfill-account-colors.js
 import env from '../src/config/env.js';
 import { connectMongo } from '../src/config/mongo.js';
 import Account from '../src/models/Account.js';

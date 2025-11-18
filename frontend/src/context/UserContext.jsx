@@ -1,4 +1,3 @@
-import { norm, canon } from '../lib/utils'; // ✅ import de utilidades
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const UserContext = createContext(null);

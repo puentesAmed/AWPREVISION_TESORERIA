@@ -612,45 +612,7 @@ export function CalendarPage() {
     );
   }
 
-  /*function renderEventContentList(arg) {
-    const ev = arg.event;
-    const xp = ev.extendedProps || {};
-    const prov   = xp?.counterparty?.name || xp?.accountAlias || "—";
-    const amount = Number(xp?.amount || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
-    const ui     = xp?.uiStatus;
-    const ymd    = ev.startStr?.slice(0,10);
-
-    const badgeStyle = {
-      fontSize: 12, padding:"2px 6px", borderRadius: 6, marginLeft: 8,
-      background: ui==="paid" ? "#9ca3af" : ui==="overdue" ? "#f59e0b" : ui==="unpaid" ? "#ef4444" : "transparent",
-      color:"#fff"
-    };
-
-    const handleStatusChange = async (next) => {
-      const id = ev.id || xp.cashflowId || xp.id || xp._id;
-      if (!id) return;
-      setAllEvents(prev => prev.map(e => {
-        if (e.id !== id) return e;
-        const uiNext = computeUiStatus(next, ymd);
-        const ext = e.extendedProps || {};
-        return { ...e, _status: next, _ui: uiNext, extendedProps: { ...ext, status: next, uiStatus: uiNext } };
-      }));
-      try { await setCashflowStatus(id, next); } catch { loadAll(); }
-    };
-
-    return (
-      <div style={{ display:"flex", alignItems:"center", gap:10, width:"100%" }}>
-        <div style={{ fontWeight:600, flex:1, minWidth:0, wordBreak:"break-word" }}>{prov}</div>
-        {ui && ui!=="pending" && <span style={badgeStyle}>
-          {ui==="paid"?"Pagado":ui==="overdue"?"Vencido":ui==="unpaid"?"Impagado":""}
-        </span>}
-        <div style={{ fontWeight:700 }}>{amount}€</div>
-        <EventStatusMenu value={ui || "pending"} onChange={handleStatusChange} />
-      </div>
-    );
-  }
-*/
-
+ 
 function renderEventContentList(arg) {
   const ev = arg.event;
   const xp = ev.extendedProps || {};

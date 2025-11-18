@@ -1,6 +1,3 @@
-// src/lib/utils.js
-
-// Normaliza strings: elimina espacios, acentos y pone en minúsculas
 export const norm = (s) => (s ?? '').toString().trim();
 
 export const canon = (s) =>
