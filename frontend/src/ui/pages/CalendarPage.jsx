@@ -1612,7 +1612,7 @@ export function CalendarPage() {
         </div>
 
         <FullCalendar
-          key={`cal-${isMobile ? 'm' : 'd'}`}        {/* solo cambia al cambiar breakpoint */}
+          key={`cal-${isMobile ? 'm' : 'd'}`}        
           ref={ref}
           plugins={[dayGridPlugin, interactionPlugin, listPlugin]}
           locale={esLocale}
