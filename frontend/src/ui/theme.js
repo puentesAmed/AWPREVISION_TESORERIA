@@ -1,4 +1,3 @@
-// src/ui/theme.js
 import { extendTheme } from "@chakra-ui/react";
 
 /* ================= Paleta ================= */
