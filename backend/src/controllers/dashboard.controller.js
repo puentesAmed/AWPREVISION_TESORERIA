@@ -42,8 +42,8 @@ export const accountsBalance = async (req, res, next) => {
       {
         $group: {
           _id: null,
-          ingresos: { $sum: { $cond: [{ $gt: ['$amount', 0] }, '$amount', 0] } },
-          gastos:   { $sum: { $cond: [{ $lt: ['$amount', 0] }, { $abs: '$amount' }, 0] } },
+          ingresos: { $sum: { $cond: [{ $eq: ['$type', 'in'] }, { $abs: '$amount' }, 0] } },
+          gastos:   { $sum: { $cond: [{ $eq: ['$type', 'out'] }, { $abs: '$amount' }, 0] } },
         }
       },
       { $project: { _id: 0, ingresos: 1, gastos: 1 } }
@@ -91,8 +91,8 @@ export const monthly = async (req, res, next) => {
       {
         $group: {
           _id: { m: { $month: '$date' } },
-          ingresos: { $sum: { $cond: [{ $gt: ['$amount', 0] }, '$amount', 0] } },
-          gastos:   { $sum: { $cond: [{ $lt: ['$amount', 0] }, { $abs: '$amount' }, 0] } },
+          ingresos: { $sum: { $cond: [{ $eq: ['$type', 'in'] }, { $abs: '$amount' }, 0] } },
+          gastos:   { $sum: { $cond: [{ $eq: ['$type', 'out'] }, { $abs: '$amount' }, 0] } },
         }
       },
       { $project: { _id: 0, month: '$_id.m', ingresos: 1, gastos: 1 } },
@@ -114,8 +114,8 @@ export const summary = async (req, res, next) => {
       {
         $group: {
           _id: null,
-          ingresos: { $sum: { $cond: [{ $gt: ['$amount', 0] }, '$amount', 0] } },
-          gastos:   { $sum: { $cond: [{ $lt: ['$amount', 0] }, { $abs: '$amount' }, 0] } },
+          ingresos: { $sum: { $cond: [{ $eq: ['$type', 'in'] }, { $abs: '$amount' }, 0] } },
+          gastos:   { $sum: { $cond: [{ $eq: ['$type', 'out'] }, { $abs: '$amount' }, 0] } },
         }
       },
       { $project: { _id: 0, ingresos: 1, gastos: 1 } }
