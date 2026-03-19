@@ -54,10 +54,12 @@ export function NewForecastModal({ date = null, onClose }) {
 
   const normalizedCounterparties = useMemo(
     () =>
-      counterparties.map((c) => ({
-        ...c,
-        normalizedName: String(c.name || "").trim().toLocaleLowerCase("es-ES"),
-      })),
+      counterparties
+        .map((c) => ({
+          ...c,
+          normalizedName: String(c.name || "").trim().toLocaleLowerCase("es-ES"),
+        }))
+        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es")),
     [counterparties]
   );
 
@@ -165,7 +167,7 @@ export function NewForecastModal({ date = null, onClose }) {
                   {...register("counterparty")}
                   isDisabled={isCreatingCounterparty}
                 >
-                  {counterparties.map((c) => (
+                  {normalizedCounterparties.map((c) => (
                     <option key={c._id} value={c._id}>
                       {c.name}
                     </option>
