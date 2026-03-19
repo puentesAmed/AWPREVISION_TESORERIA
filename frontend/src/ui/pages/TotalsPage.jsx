@@ -315,6 +315,7 @@ export function TotalsPage() {
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [granularity, setGranularity] = useState('day');
   const [account, setAccount] = useState('');
+  const [category, setCategory] = useState('');
   const [counterparty, setCounterparty] = useState('');
   const [status, setStatus] = useState('');
   const [flowType, setFlowType] = useState('out');
@@ -357,13 +358,27 @@ export function TotalsPage() {
     [counterpartiesResp]
   );
 
+  const { data: categoriesResp, isLoading: loadingCategories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => api.get('/categories').then(r => r.data),
+    staleTime: 60_000,
+  });
+
+  const categories = useMemo(
+    () => (Array.isArray(categoriesResp) ? [...categoriesResp] : []).sort((a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''), 'es')
+    ),
+    [categoriesResp]
+  );
+
   const { data: totalsResp, isLoading } = useQuery({
-    queryKey: ['totals', from, to, account, counterparty, granularity, status, flowType],
+    queryKey: ['totals', from, to, account, category, counterparty, granularity, status, flowType],
     queryFn: () =>
       getTotals({
         from,
         to,
         account,
+        category: category || undefined,
         counterparty: counterparty || undefined,
         groupBy: 'date',
         granularity,
@@ -396,6 +411,7 @@ export function TotalsPage() {
       const res = await getOverdue({
         to,
         account: account || undefined,
+        category: category || undefined,
         counterparty: counterparty || undefined,
       });
       const rows = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
@@ -468,6 +484,7 @@ export function TotalsPage() {
         from,
         to,
         account: account || undefined,
+        category: category || undefined,
         counterparty: counterparty || undefined,
         type: flowType || undefined,
       });
@@ -517,6 +534,7 @@ export function TotalsPage() {
         from,
         to,
         account: account || undefined,
+        category: category || undefined,
         counterparty: counterparty || undefined,
         type: flowType || undefined,
         scope: providerPdfScope,
@@ -603,55 +621,73 @@ export function TotalsPage() {
       <Box bg={cardBg} border="1px solid" borderColor={border} rounded="lg" p={6} mb={6}>
         <Heading size="md" mb={2}>Totales</Heading>
         <Text fontSize="sm" color={subtle} mb={4}>
-          Filtra por fechas, cuenta, proveedor, estado y tipo para visualizar y exportar.
+          Filtra por fechas, entidades y estado para visualizar y exportar con más contexto.
         </Text>
 
-        <Stack direction={{ base: 'column', md: 'row' }} spacing={3} mb={3}>
-          <Select
-            aria-label="Cuenta"
-            value={account}
-            onChange={e => setAccount(e.target.value)}
-            isDisabled={loadingAccounts}
-          >
-            <option value="">Todas</option>
-            {accounts.map(a => (
-              <option key={a._id || a.id} value={a._id || a.id}>
-                {a.alias || a.name || 'Cuenta'}
-              </option>
-            ))}
-          </Select>
-          <Input aria-label="Desde" type="date" value={from} onChange={e => setFrom(e.target.value)} />
-          <Select aria-label="Estado" value={status} onChange={e => setStatus(e.target.value)}>
-            <option value="">Todos los estados</option>
-            {TOTALS_STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </Select>
-          <Select aria-label="Granularidad" value={granularity} onChange={e => setGranularity(e.target.value)}>
-            {GRANULARITY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </Select>
-          <Input aria-label="Hasta" type="date" value={to} onChange={e => setTo(e.target.value)} />
-          <Select
-            aria-label="Proveedor"
-            value={counterparty}
-            onChange={e => setCounterparty(e.target.value)}
-            isDisabled={loadingCounterparties}
-          >
-            <option value="">Todos los proveedores</option>
-            {counterparties.map((c) => (
-              <option key={c._id || c.id} value={c._id || c.id}>
-                {c.name || 'Proveedor'}
-              </option>
-            ))}
-          </Select>
-          <Select aria-label="Tipo de flujo" value={flowType} onChange={e => setFlowType(e.target.value)}>
-            <option value="">Todos</option>
-            {FLOW_TYPE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </Select>
+        <Stack spacing={3} mb={3}>
+          <Stack direction={{ base: 'column', md: 'row' }} spacing={3}>
+            <Input aria-label="Desde" type="date" value={from} onChange={e => setFrom(e.target.value)} />
+            <Input aria-label="Hasta" type="date" value={to} onChange={e => setTo(e.target.value)} />
+            <Select aria-label="Granularidad" value={granularity} onChange={e => setGranularity(e.target.value)}>
+              {GRANULARITY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+          </Stack>
+
+          <Stack direction={{ base: 'column', md: 'row' }} spacing={3}>
+            <Select
+              aria-label="Cuenta"
+              value={account}
+              onChange={e => setAccount(e.target.value)}
+              isDisabled={loadingAccounts}
+            >
+              <option value="">Todas las cuentas</option>
+              {accounts.map(a => (
+                <option key={a._id || a.id} value={a._id || a.id}>
+                  {a.alias || a.name || 'Cuenta'}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Proveedor"
+              value={counterparty}
+              onChange={e => setCounterparty(e.target.value)}
+              isDisabled={loadingCounterparties}
+            >
+              <option value="">Todos los proveedores</option>
+              {counterparties.map((c) => (
+                <option key={c._id || c.id} value={c._id || c.id}>
+                  {c.name || 'Proveedor'}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Categoría"
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              isDisabled={loadingCategories}
+            >
+              <option value="">Todas las categorías</option>
+              {categories.map((c) => (
+                <option key={c._id || c.id} value={c._id || c.id}>
+                  {c.name || 'Categoría'}
+                </option>
+              ))}
+            </Select>
+            <Select aria-label="Estado" value={status} onChange={e => setStatus(e.target.value)}>
+              <option value="">Todos los estados</option>
+              {TOTALS_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+            <Select aria-label="Tipo de flujo" value={flowType} onChange={e => setFlowType(e.target.value)}>
+              <option value="">Todos</option>
+              {FLOW_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+          </Stack>
         </Stack>
 
         <HStack spacing={3} flexWrap="wrap">

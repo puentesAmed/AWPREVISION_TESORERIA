@@ -23,6 +23,7 @@ export const totals = async (req, res) => {
       groupBy = 'date',     
       granularity = 'day',  
       account,
+      category,
       counterparty,
       status,               
       type,                 
@@ -44,6 +45,10 @@ export const totals = async (req, res) => {
 
     if (counterparty && mongoose.isValidObjectId(counterparty)) {
       match.counterparty = new mongoose.Types.ObjectId(counterparty);
+    }
+
+    if (category && mongoose.isValidObjectId(category)) {
+      match.category = new mongoose.Types.ObjectId(category);
     }
 
     // Estado
@@ -91,6 +96,9 @@ export const overdue = async (req, res) => {
     if (req.query.counterparty && mongoose.isValidObjectId(req.query.counterparty)) {
       match.counterparty = new mongoose.Types.ObjectId(req.query.counterparty);
     }
+    if (req.query.category && mongoose.isValidObjectId(req.query.category)) {
+      match.category = new mongoose.Types.ObjectId(req.query.category);
+    }
 
     const rows = await Cashflow.find(
       match,
@@ -134,6 +142,9 @@ export const pendingPerAccountMonth = async (req, res) => {
             : {}),
           ...(req.query.counterparty && mongoose.isValidObjectId(req.query.counterparty)
             ? { counterparty: new mongoose.Types.ObjectId(req.query.counterparty) }
+            : {}),
+          ...(req.query.category && mongoose.isValidObjectId(req.query.category)
+            ? { category: new mongoose.Types.ObjectId(req.query.category) }
             : {}),
           ...(req.query.type && ['in', 'out'].includes(req.query.type)
             ? { type: req.query.type }
@@ -189,6 +200,7 @@ export const pendingOverdueByCounterparty = async (req, res) => {
       from,
       to,
       account,
+      category,
       counterparty,
       type,
       scope = 'all',
@@ -205,6 +217,9 @@ export const pendingOverdueByCounterparty = async (req, res) => {
     }
     if (counterparty && mongoose.isValidObjectId(counterparty)) {
       match.counterparty = new mongoose.Types.ObjectId(counterparty);
+    }
+    if (category && mongoose.isValidObjectId(category)) {
+      match.category = new mongoose.Types.ObjectId(category);
     }
     if (type && ['in', 'out'].includes(type)) {
       match.type = type;
