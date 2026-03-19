@@ -464,6 +464,32 @@ export function CalendarPage() {
       return { value: String(i + 1), label: label[0].toUpperCase() + label.slice(1) };
     }).sort((a, b) => a.label.localeCompare(b.label, "es")), []);
 
+  const filterBarStyle = useMemo(() => ({
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    alignItems: isMobile ? "stretch" : "center",
+    justifyContent: "space-between",
+    width: "100%",
+    overflowX: "hidden",
+  }), [isMobile]);
+
+  const filterGroupStyle = useMemo(() => ({
+    display: "flex",
+    flexDirection: isMobile ? "column" : "row",
+    alignItems: isMobile ? "stretch" : "center",
+    gap: 8,
+    width: isMobile ? "100%" : "auto",
+    minWidth: 0,
+    flex: isMobile ? "1 1 100%" : "0 1 auto",
+  }), [isMobile]);
+
+  const filterSelectStyle = useMemo(() => ({
+    width: isMobile ? "100%" : "auto",
+    maxWidth: "100%",
+    minWidth: 0,
+  }), [isMobile]);
+
   /* ===== efectos ===== */
   useEffect(() => { loadAll(); }, []);
   useEffect(() => { setEvents(projectForCalendar(allEvents, filters)); }, [filters, allEvents]);
@@ -754,20 +780,22 @@ export function CalendarPage() {
     <div className="page">
       <div
         className="card"
-        style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"center", justifyContent:"space-between" }}
+        style={filterBarStyle}
       >
         <Button
           bg={buttonBg}
           color={buttonColor}
           _hover={{ bg: buttonHover }}
+          width={isMobile ? "100%" : "auto"}
           onClick={() => { setSelectedDate(null); setOpen(true); }}
         >
           + Nuevo vencimiento
         </Button>
 
-        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
+        <label style={filterGroupStyle}>
           Año:
           <select
+            style={filterSelectStyle}
             value={filters.year}
             onChange={(e) => setFilters((f) => ({ ...f, year: e.target.value }))}
           >
@@ -778,9 +806,10 @@ export function CalendarPage() {
           </select>
         </label>
 
-        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
+        <label style={filterGroupStyle}>
           Categoría:
           <select
+            style={filterSelectStyle}
             value={filters.categoryId}
             onChange={(e) => setFilters((f) => ({ ...f, categoryId: e.target.value }))}
           >
@@ -791,9 +820,10 @@ export function CalendarPage() {
           </select>
         </label>
 
-        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
+        <label style={filterGroupStyle}>
           Cuenta:
           <select
+            style={filterSelectStyle}
             value={filters.accountId}
             onChange={(e) => setFilters((f) => ({ ...f, accountId: e.target.value }))}
           >
@@ -804,9 +834,10 @@ export function CalendarPage() {
           </select>
         </label>
 
-        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
+        <label style={filterGroupStyle}>
           Estado:
           <select
+            style={filterSelectStyle}
             value={filters.status}
             onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
           >
@@ -817,9 +848,10 @@ export function CalendarPage() {
           </select>
         </label>
 
-        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
+        <label style={filterGroupStyle}>
           Mes:
           <select
+            style={filterSelectStyle}
             value={filters.month}
             onChange={(e) => setFilters((f) => ({ ...f, month: e.target.value }))}
           >
@@ -830,9 +862,10 @@ export function CalendarPage() {
           </select>
         </label>
 
-        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
+        <label style={filterGroupStyle}>
           Proveedor:
           <select
+            style={filterSelectStyle}
             value={filters.counterpartyId}
             onChange={(e) => setFilters((f) => ({ ...f, counterpartyId: e.target.value }))}
           >
@@ -847,6 +880,7 @@ export function CalendarPage() {
           bg={buttonBg}
           color={buttonColor}
           _hover={{ bg: buttonHover }}
+          width={isMobile ? "100%" : "auto"}
           onClick={() => setFilters({ accountId:"", categoryId:"", counterpartyId:"", month:"", year:"", status:"" })}
         >
           Limpiar filtros
@@ -857,11 +891,29 @@ export function CalendarPage() {
         {accounts.length > 0 && (
           <div
             className="card"
-            style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", width:"100%", padding:"2px 0" }}
+            style={{
+              display:"flex",
+              gap:6,
+              flexWrap:"wrap",
+              alignItems:"center",
+              width:"100%",
+              padding:"2px 0",
+              overflowX:"hidden",
+            }}
           >
             <strong>Leyenda cuentas:</strong>
             {accounts.map((a) => (
-              <span key={a._id} style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
+              <span
+                key={a._id}
+                style={{
+                  display:"inline-flex",
+                  alignItems:"center",
+                  gap:6,
+                  maxWidth:"100%",
+                  whiteSpace:"normal",
+                  overflowWrap:"anywhere",
+                }}
+              >
                 <span
                   style={{
                     width:12, height:12, borderRadius:3,
@@ -889,7 +941,9 @@ export function CalendarPage() {
 
           /* Vistas y cabecera */
           initialView={isMobile ? "listMonth" : "dayGridMonth"}
-          headerToolbar={{ left: "", center: "", right: "prev,next today" }}
+          headerToolbar={isMobile
+            ? { left: "prev,next", center: "", right: "today" }
+            : { left: "", center: "", right: "prev,next today" }}
           titleFormat={isMobile ? { month: "short", year: "numeric" } : { month: "long", year: "numeric" }}
           dayHeaderFormat={isMobile ? { weekday: "short" } : { weekday: "long" }}
           fixedWeekCount={false}
