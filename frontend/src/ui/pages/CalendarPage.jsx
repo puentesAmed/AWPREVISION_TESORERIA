@@ -424,6 +424,12 @@ export function CalendarPage() {
     const map = new Map();
     const list = filterBaseForTotals(allEvents, filters);
     for (const e of list) {
+      const uiStatus =
+        e._ui ||
+        e.extendedProps?.uiStatus ||
+        computeUiStatus(e._status || e.extendedProps?.status, e.start?.slice(0, 10));
+      if (uiStatus === "paid") continue;
+
       const ymd = toLocalYMD(e.start);
       const amtRaw = Number(e._amount ?? e.extendedProps?.amount ?? 0) || 0;
       const amt = SUM_ABSOLUTE ? Math.abs(amtRaw) : amtRaw;
