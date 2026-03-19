@@ -49,7 +49,7 @@ const computeUiStatus = (persistedStatus, ymd) => {
 };
 
 /* ========= Menú de estado (botón) ========= */
-function EventStatusMenu({ value, onChange }) {
+function EventStatusMenu({ onChange }) {
   const [open, setOpen] = React.useState(false);
   const [pos, setPos] = React.useState({ top: 0, left: 0, width: 168 });
   const btnRef = React.useRef(null);
@@ -166,11 +166,12 @@ export function CalendarPage() {
   // Mantener posición visible del calendario
   const [viewDate, setViewDate] = useState(new Date());
 
-  // Antes usabas calKey para forzar remount; ya no lo necesitamos para totales.
+  // Mantiene un remount controlado para refrescar los totales del pie en desktop.
   const isMobile = useBreakpointValue({ base: true, md: false });
 
   // Totales por día
   const [dayTotals, setDayTotals] = useState(new Map());
+  const [calKey, setCalKey] = useState(0);
   const SUM_ABSOLUTE = false;
 
   // Botones
@@ -267,6 +268,7 @@ export function CalendarPage() {
             type,
             accountAlias,
             categoryName,
+            concept: e.concept ?? e.extendedProps?.concept ?? "",
             counterparty: e.counterparty ?? e.extendedProps?.counterparty ?? null,
             accountColor,
             status,
@@ -422,6 +424,12 @@ export function CalendarPage() {
     const map = new Map();
     const list = filterBaseForTotals(allEvents, filters);
     for (const e of list) {
+      const uiStatus =
+        e._ui ||
+        e.extendedProps?.uiStatus ||
+        computeUiStatus(e._status || e.extendedProps?.status, e.start?.slice(0, 10));
+      if (uiStatus === "paid") continue;
+
       const ymd = toLocalYMD(e.start);
       const amtRaw = Number(e._amount ?? e.extendedProps?.amount ?? 0) || 0;
       const amt = SUM_ABSOLUTE ? Math.abs(amtRaw) : amtRaw;
@@ -430,12 +438,12 @@ export function CalendarPage() {
     }
     setDayTotals(map);
 
-    // fuerza un repintado ligero sin mover la fecha/vista
-    requestAnimationFrame(() => {
-      const api = ref.current?.getApi?.();
-      api?.updateSize();
-    });
-  }, [allEvents, filters]);
+    // FullCalendar no vuelve a disparar dayCellDidMount cuando cambian
+    // los datos en caliente; remount controlado para restaurar el pie.
+    if (!isMobile) {
+      setCalKey((k) => k + 1);
+    }
+  }, [allEvents, filters, isMobile, SUM_ABSOLUTE]);
 
   // click evento (ignora clics en el botón/menú)
   const onEventClick = async (info) => {
@@ -526,6 +534,7 @@ export function CalendarPage() {
     }
 
     const prov   = xp?.counterparty?.name || xp?.accountAlias || "—";
+    const concept = String(xp?.concept || "").trim();
     const amount = Number(xp?.amount || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
     const ui     = xp?.uiStatus;
     const ymd    = ev.startStr?.slice(0,10);
@@ -572,16 +581,30 @@ export function CalendarPage() {
     return (
       <div style={{ display:"flex", flexDirection:"column", gap:2, justifyContent:"space-between", padding:"0 2px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:6, justifyContent:"space-between" }}>
-          <span style={{
-            fontWeight: 600,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: isMobile ? "clip" : "ellipsis",
-            whiteSpace: isMobile ? "normal" : "nowrap",
-            wordBreak: "break-word",
-          }}>
-            {prov}
-          </span>
+          <div style={{ minWidth: 0, display:"flex", flexDirection:"column", gap:2 }}>
+            <span style={{
+              fontWeight: 600,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: isMobile ? "clip" : "ellipsis",
+              whiteSpace: isMobile ? "normal" : "nowrap",
+              wordBreak: "break-word",
+            }}>
+              {prov}
+            </span>
+            {concept && (
+              <span style={{
+                fontSize: 11,
+                opacity: 0.9,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}>
+                {concept}
+              </span>
+            )}
+          </div>
 
           {ui && ui !== "pending" && (
             <span style={badgeStyle}>
@@ -591,7 +614,7 @@ export function CalendarPage() {
             </span>
           )}
 
-          <EventStatusMenu value={ui || "pending"} onChange={handleStatusChange} />
+          <EventStatusMenu onChange={handleStatusChange} />
         </div>
 
         <div style={{ fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:600 }}>
@@ -622,6 +645,7 @@ export function CalendarPage() {
     }
 
     const prov   = xp?.counterparty?.name || xp?.accountAlias || "—";
+    const concept = String(xp?.concept || "").trim();
     const amount = Number(xp.amount ?? 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
     const ui     = xp?.uiStatus;
 
@@ -634,11 +658,25 @@ export function CalendarPage() {
     return (
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%" }}>
         <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
-          <span style={{
-            minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:600
-          }}>
-            {prov}
-          </span>
+          <div style={{ minWidth:0, display:"flex", flexDirection:"column", gap:2 }}>
+            <span style={{
+              minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:600
+            }}>
+              {prov}
+            </span>
+            {concept && (
+              <span style={{
+                minWidth:0,
+                overflow:"hidden",
+                textOverflow:"ellipsis",
+                whiteSpace:"nowrap",
+                fontSize:11,
+                opacity:0.85,
+              }}>
+                {concept}
+              </span>
+            )}
+          </div>
           {ui && ui!=="pending" && <span style={badgeStyle}>
             {ui==="paid" ? "Pagado" : ui==="overdue" ? "Vencido" : "Impagado"}
           </span>}
@@ -646,7 +684,7 @@ export function CalendarPage() {
 
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <strong>{amount}€</strong>
-          <EventStatusMenu value={ui || "pending"} onChange={(next)=> {
+          <EventStatusMenu onChange={(next)=> {
             const ymd = ev.startStr?.slice(0,10);
             const id  = ev.id || xp.cashflowId || xp.id || xp._id;
             if (!id) return;
@@ -780,7 +818,7 @@ export function CalendarPage() {
         </div>
 
         <FullCalendar
-          key={`cal-${isMobile ? 'm' : 'd'}`}        
+          key={`cal-${isMobile ? 'm' : 'd'}-${calKey}`}
           ref={ref}
           plugins={[dayGridPlugin, interactionPlugin, listPlugin]}
           locale={esLocale}
@@ -846,4 +884,3 @@ export function CalendarPage() {
     </div>
   );
 }
-

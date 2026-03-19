@@ -13,16 +13,19 @@ import scenariosRoutes from './routes/scenarios.routes.js'
 import reportsRoutes from './routes/reports.routes.js'
 import counterpartiesRoutes from './routes/counterparties.routes.js'
 import categoriesRoutes from './routes/categories.routes.js'
+import registrationInvitesRoutes from './routes/registrationInvites.routes.js'
 
 // ⚠️ crear app ANTES de usar cualquier middleware
 const app = express()
 app.set('trust proxy', 1)
 
 const ORIGINS = env.CORS_ORIGINS
+const JOTRINSA_ORIGIN_RE = /^https:\/\/([a-z0-9-]+\.)?jotrinsa\.com$/i
 
 const isAllowed = (origin) => {
   if (!origin) return true;
   if (ORIGINS.includes(origin)) return true;
+  if (JOTRINSA_ORIGIN_RE.test(origin)) return true;
   // permitir permalinks del sitio en Netlify:
   if (/--prevtesorejot\.netlify\.app$/.test(origin)) return true;
   return false;
@@ -48,6 +51,7 @@ app.get('/health', (_req,res)=> res.json({ ok:true }))
 app.use('/api/auth', authRoutes)
 app.use('/api/accounts', accountRoutes)
 app.use('/api/counterparties', counterpartiesRoutes)
+app.use('/api/registration-invites', registrationInvitesRoutes)
 app.use('/api/cashflows', cashflowRoutes)
 app.use('/api/reports', reportsRoutes)
 app.use('/api/scenarios', scenariosRoutes)

@@ -48,6 +48,36 @@ const parseAmount = (v) => {
   return isNaN(n) ? NaN : n;
 };
 
+const typeMap = (v) => {
+  const t = (v ?? '').toString().trim().toLowerCase();
+  if (['in', 'cobro', 'entrada', 'abono'].includes(t)) return 'in';
+  if (['out', 'pago', 'salida', 'cargo', 'gasto'].includes(t)) return 'out';
+  return 'out';
+};
+
+const normalizeAmountByType = (amount, type) => {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return amount;
+  const abs = Math.abs(n);
+  return type === 'out' ? -abs : abs;
+};
+
+const resolveImportType = (amount, rawType) => {
+  const n = Number(amount);
+  const hasExplicitType = !!norm(rawType);
+  const mappedType = hasExplicitType ? typeMap(rawType) : null;
+
+  if (mappedType === 'out') {
+    return Number.isFinite(n) && n < 0 ? 'in' : 'out';
+  }
+
+  if (mappedType === 'in') {
+    return 'in';
+  }
+
+  return Number.isFinite(n) && n < 0 ? 'out' : 'in';
+};
+
 const headerMap = (h) => {
   const k = (h ?? '')
     .toString()
@@ -116,9 +146,11 @@ const parseCsv = (text) => {
     const tmp = {}; mapped.forEach((k, idx) => { if (k) tmp[k] = cols[idx]; });
     const d = parseDateLoose(tmp.date); const amt = parseAmount(tmp.amount); const acc = norm(tmp.account);
     if (!d || isNaN(amt) || !acc) continue;
+    const type = resolveImportType(amt, tmp.type);
     out.push({
       dateYMD: toYMD(d),
-      amount: amt,
+      amount: normalizeAmountByType(amt, type),
+      type,
       account: acc,
       counterparty: norm(tmp.counterparty),
       category: norm(tmp.category),
@@ -147,9 +179,11 @@ async function parseXlsx(file) {
     for (const r of mappedRows) {
       const d = parseDateLoose(r.date); const amt = parseAmount(r.amount); const acc = norm(r.account);
       if (!d || isNaN(amt) || !acc) continue;
+      const type = resolveImportType(amt, r.type);
       out.push({
         dateYMD: toYMD(d),
-        amount: amt,
+        amount: normalizeAmountByType(amt, type),
+        type,
         account: acc,
         counterparty: norm(r.counterparty),
         category: norm(r.category),
@@ -223,8 +257,7 @@ export function ImportPage() {
     };
     const lines = [headers.join(',')];
     for (const r of unique) {
-      const typeCanonical = dirBySign(r.amount);
-      lines.push([r.dateYMD, r.amount, typeCanonical, r.account, r.counterparty, r.category, r.concept, r.status].map(esc).join(','));
+      lines.push([r.dateYMD, r.amount, r.type, r.account, r.counterparty, r.category, r.concept, r.status].map(esc).join(','));
     }
     const csv = lines.join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -332,5 +365,3 @@ export function ImportPage() {
     </Box>
   );
 }
-
-
