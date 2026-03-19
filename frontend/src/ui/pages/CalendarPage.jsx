@@ -48,6 +48,13 @@ const computeUiStatus = (persistedStatus, ymd) => {
   return persistedStatus;
 };
 
+const normalizeAmountByType = (amount, type) => {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return 0;
+  const abs = Math.abs(n);
+  return type === "out" ? -abs : abs;
+};
+
 /* ========= Menú de estado (botón) ========= */
 function EventStatusMenu({ onChange }) {
   const [open, setOpen] = React.useState(false);
@@ -221,7 +228,11 @@ export function CalendarPage() {
     (fallbackId ? `Categoría ${fallbackId}` : "—");
 
   const getType = (e) => e.extendedProps?.type ?? e.type ?? undefined;
-  const getAmount = (e) => Number(e.amount ?? e.extendedProps?.amount ?? 0) || 0;
+  const getAmount = (e) => {
+    const type = getType(e);
+    const rawAmount = Number(e.amount ?? e.extendedProps?.amount ?? 0) || 0;
+    return normalizeAmountByType(rawAmount, type);
+  };
 
   // carga global
   async function loadAll() {
