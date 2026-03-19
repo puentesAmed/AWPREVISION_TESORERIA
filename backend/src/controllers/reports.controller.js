@@ -23,6 +23,7 @@ export const totals = async (req, res) => {
       groupBy = 'date',     
       granularity = 'day',  
       account,
+      counterparty,
       status,               
       type,                 
     } = req.query;
@@ -39,6 +40,10 @@ export const totals = async (req, res) => {
     // Cuenta
     if (account && mongoose.isValidObjectId(account)) {
       match.account = new mongoose.Types.ObjectId(account);
+    }
+
+    if (counterparty && mongoose.isValidObjectId(counterparty)) {
+      match.counterparty = new mongoose.Types.ObjectId(counterparty);
     }
 
     // Estado
@@ -83,12 +88,9 @@ export const overdue = async (req, res) => {
     if (req.query.account && mongoose.isValidObjectId(req.query.account)) {
       match.account = new mongoose.Types.ObjectId(req.query.account);
     }
-
-    // LOG DE DEPURACIÓN
-    console.log('[overdue] params:', { toParam, toEnd, account: req.query.account });
-    const countAll = await Cashflow.countDocuments({});
-    const countPending = await Cashflow.countDocuments({ status: 'pending' });
-    console.log('[overdue] count all:', countAll, 'count pending:', countPending);
+    if (req.query.counterparty && mongoose.isValidObjectId(req.query.counterparty)) {
+      match.counterparty = new mongoose.Types.ObjectId(req.query.counterparty);
+    }
 
     const rows = await Cashflow.find(
       match,
@@ -100,7 +102,6 @@ export const overdue = async (req, res) => {
     .populate({ path:'category', select:'name' })
     .lean();
 
-    console.log('[overdue] matched rows:', rows.length);
     res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -128,6 +129,15 @@ export const pendingPerAccountMonth = async (req, res) => {
       {
         $match: {
           status: 'pending',
+          ...(req.query.account && mongoose.isValidObjectId(req.query.account)
+            ? { account: new mongoose.Types.ObjectId(req.query.account) }
+            : {}),
+          ...(req.query.counterparty && mongoose.isValidObjectId(req.query.counterparty)
+            ? { counterparty: new mongoose.Types.ObjectId(req.query.counterparty) }
+            : {}),
+          ...(req.query.type && ['in', 'out'].includes(req.query.type)
+            ? { type: req.query.type }
+            : {}),
           date: { $gte: start, $lte: end }, // ← solo pendientes futuros (no vencidos)
         }
       },
@@ -168,6 +178,108 @@ export const pendingPerAccountMonth = async (req, res) => {
     ]);
 
     res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+export const pendingOverdueByCounterparty = async (req, res) => {
+  try {
+    const {
+      from,
+      to,
+      account,
+      counterparty,
+      type,
+      scope = 'all',
+    } = req.query;
+
+    const match = { status: 'pending' };
+    if (from || to) {
+      match.date = {};
+      if (from) match.date.$gte = toUTCStart(from);
+      if (to) match.date.$lte = toUTCEnd(to);
+    }
+    if (account && mongoose.isValidObjectId(account)) {
+      match.account = new mongoose.Types.ObjectId(account);
+    }
+    if (counterparty && mongoose.isValidObjectId(counterparty)) {
+      match.counterparty = new mongoose.Types.ObjectId(counterparty);
+    }
+    if (type && ['in', 'out'].includes(type)) {
+      match.type = type;
+    }
+
+    const todayStart = toUTCStart(new Date().toISOString().slice(0, 10));
+    const rows = await Cashflow.find(
+      match,
+      { date: 1, amount: 1, status: 1, concept: 1, account: 1, counterparty: 1, category: 1, type: 1 }
+    )
+      .sort({ counterparty: 1, date: 1 })
+      .populate({ path: 'account', select: 'alias' })
+      .populate({ path: 'counterparty', select: 'name' })
+      .populate({ path: 'category', select: 'name' })
+      .lean();
+
+    const includePending = scope === 'all' || scope === 'pending';
+    const includeOverdue = scope === 'all' || scope === 'overdue';
+
+    const filteredRows = rows.filter((row) => {
+      const rowDate = row.date instanceof Date ? row.date : new Date(row.date);
+      const bucket = rowDate < todayStart ? 'overdue' : 'pending';
+      if (bucket === 'pending') return includePending;
+      if (bucket === 'overdue') return includeOverdue;
+      return false;
+    });
+
+    const groupsMap = new Map();
+    for (const row of filteredRows) {
+      const rowDate = row.date instanceof Date ? row.date : new Date(row.date);
+      const bucket = rowDate < todayStart ? 'overdue' : 'pending';
+      const cpId = String(row.counterparty?._id ?? row.counterparty ?? 'none');
+      const cpName = row.counterparty?.name || 'Sin proveedor';
+      const amountAbs = Math.abs(Number(row.amount) || 0);
+
+      if (!groupsMap.has(cpId)) {
+        groupsMap.set(cpId, {
+          counterpartyId: cpId === 'none' ? null : cpId,
+          counterpartyName: cpName,
+          total: 0,
+          pendingTotal: 0,
+          overdueTotal: 0,
+          items: [],
+        });
+      }
+
+      const group = groupsMap.get(cpId);
+      group.total += amountAbs;
+      if (bucket === 'pending') group.pendingTotal += amountAbs;
+      if (bucket === 'overdue') group.overdueTotal += amountAbs;
+      group.items.push({
+        ...row,
+        bucket,
+        amountAbs,
+      });
+    }
+
+    const groups = Array.from(groupsMap.values()).sort((a, b) =>
+      a.counterpartyName.localeCompare(b.counterpartyName, 'es', { sensitivity: 'base' })
+    );
+
+    const summary = groups.reduce((acc, group) => {
+      acc.total += group.total;
+      acc.pendingTotal += group.pendingTotal;
+      acc.overdueTotal += group.overdueTotal;
+      acc.count += group.items.length;
+      return acc;
+    }, { total: 0, pendingTotal: 0, overdueTotal: 0, count: 0 });
+
+    res.json({
+      scope,
+      generatedAt: new Date().toISOString(),
+      groups,
+      ...summary,
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

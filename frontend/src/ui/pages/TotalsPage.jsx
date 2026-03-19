@@ -266,7 +266,7 @@ export function TotalsPage() {
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api.js';
-import { getTotals, getOverdue, getPendingPerAccountMonth } from '@/api/reportsService.js';
+import { getTotals, getOverdue, getPendingOverdueByCounterparty, getPendingPerAccountMonth } from '@/api/reportsService.js';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
@@ -298,8 +298,10 @@ export function TotalsPage() {
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [granularity, setGranularity] = useState('day');
   const [account, setAccount] = useState('');
+  const [counterparty, setCounterparty] = useState('');
   const [status, setStatus] = useState('');
   const [flowType, setFlowType] = useState('out');
+  const [providerPdfScope, setProviderPdfScope] = useState('all');
 
   // Tokens de tema
   const pageBg   = useColorModeValue('neutral.50', 'neutral.900');
@@ -320,13 +322,25 @@ export function TotalsPage() {
 
   const accounts = useMemo(() => Array.isArray(accountsResp) ? accountsResp : [], [accountsResp]);
 
+  const { data: counterpartiesResp, isLoading: loadingCounterparties } = useQuery({
+    queryKey: ['counterparties'],
+    queryFn: () => api.get('/counterparties').then(r => r.data),
+    staleTime: 60_000,
+  });
+
+  const counterparties = useMemo(
+    () => (Array.isArray(counterpartiesResp) ? counterpartiesResp : []),
+    [counterpartiesResp]
+  );
+
   const { data: totalsResp, isLoading } = useQuery({
-    queryKey: ['totals', from, to, account, granularity, status, flowType],
+    queryKey: ['totals', from, to, account, counterparty, granularity, status, flowType],
     queryFn: () =>
       getTotals({
         from,
         to,
         account,
+        counterparty: counterparty || undefined,
         groupBy: 'date',
         granularity,
         status: status || undefined,
@@ -355,7 +369,11 @@ export function TotalsPage() {
   // ====== PDF: Vencidos ======
   const handleExportOverduePdf = async () => {
     try {
-      const res = await getOverdue({ to });
+      const res = await getOverdue({
+        to,
+        account: account || undefined,
+        counterparty: counterparty || undefined,
+      });
       const rows = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
       if (!Array.isArray(rows)) return alert('La API de vencidos no devolvió array');
 
@@ -422,7 +440,13 @@ export function TotalsPage() {
   // ====== PDF: Pendientes por cuenta y mes ======
   const handleExportPendingPerAccountMonthPdf = async () => {
     try {
-      const res = await getPendingPerAccountMonth({ from, to });
+      const res = await getPendingPerAccountMonth({
+        from,
+        to,
+        account: account || undefined,
+        counterparty: counterparty || undefined,
+        type: flowType || undefined,
+      });
       const rows = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
       if (!Array.isArray(rows)) return alert('La API no devolvió array');
 
@@ -463,12 +487,99 @@ export function TotalsPage() {
     }
   };
 
+  const handleExportPendingOverdueByCounterpartyPdf = async () => {
+    try {
+      const report = await getPendingOverdueByCounterparty({
+        from,
+        to,
+        account: account || undefined,
+        counterparty: counterparty || undefined,
+        type: flowType || undefined,
+        scope: providerPdfScope,
+      });
+
+      const groups = Array.isArray(report?.groups) ? report.groups : [];
+      if (!groups.length) {
+        return alert('No hay registros pendientes o vencidos para ese filtro.');
+      }
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'A4' });
+      const marginX = 40;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const formatMoney = (value) =>
+        Number(value || 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' });
+      const scopeLabel =
+        providerPdfScope === 'pending' ? 'Pendientes'
+          : providerPdfScope === 'overdue' ? 'Vencidos'
+          : 'Pendientes y vencidos';
+
+      doc.setFontSize(16);
+      doc.text(`${scopeLabel} por proveedor`, marginX, 40);
+      doc.setFontSize(10);
+      doc.text(`Desde: ${from}  Hasta: ${to}`, marginX, 58);
+      doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, marginX, 72);
+
+      let currentY = 92;
+      groups.forEach((group, index) => {
+        if (currentY > doc.internal.pageSize.getHeight() - 140) {
+          doc.addPage();
+          currentY = 50;
+        }
+
+        doc.setFontSize(12);
+        doc.text(
+          `${group.counterpartyName} · Total ${formatMoney(group.total)} · Pendiente ${formatMoney(group.pendingTotal)} · Vencido ${formatMoney(group.overdueTotal)}`,
+          marginX,
+          currentY
+        );
+
+        autoTable(doc, {
+          startY: currentY + 8,
+          head: [['Fecha', 'Estado', 'Cuenta', 'Categoría', 'Concepto', 'Importe']],
+          body: group.items.map((item) => ([
+            item.date ? new Date(item.date).toISOString().slice(0, 10) : '',
+            item.bucket === 'overdue' ? 'Vencido' : 'Pendiente',
+            item.account?.alias || '—',
+            item.category?.name || '—',
+            item.concept || '—',
+            formatMoney(item.amountAbs),
+          ])),
+          margin: { left: marginX, right: marginX },
+          tableWidth: pageWidth - marginX * 2,
+          styles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak', valign: 'middle' },
+          headStyles: { fillColor: [33, 37, 41] },
+          columnStyles: {
+            0: { cellWidth: 72 },
+            1: { cellWidth: 70 },
+            2: { cellWidth: 90 },
+            3: { cellWidth: 90 },
+            4: { cellWidth: 150 },
+            5: { cellWidth: 80, halign: 'right' },
+          },
+        });
+
+        currentY = doc.lastAutoTable.finalY + (index === groups.length - 1 ? 18 : 24);
+      });
+
+      doc.setFontSize(12);
+      doc.text(
+        `TOTAL INFORME: ${formatMoney(report.total)} · Pendiente ${formatMoney(report.pendingTotal)} · Vencido ${formatMoney(report.overdueTotal)}`,
+        marginX,
+        currentY
+      );
+
+      doc.save(`pendientes_vencidos_proveedor_${from}_${to}.pdf`);
+    } catch {
+      alert('No se pudo generar el PDF por proveedor');
+    }
+  };
+
   return (
     <Box bg={pageBg} minH="calc(100vh - 120px)" p={6}>
       <Box bg={cardBg} border="1px solid" borderColor={border} rounded="lg" p={6} mb={6}>
         <Heading size="md" mb={2}>Totales</Heading>
         <Text fontSize="sm" color={subtle} mb={4}>
-          Filtra por fechas, cuenta, estado y tipo para visualizar y exportar.
+          Filtra por fechas, cuenta, proveedor, estado y tipo para visualizar y exportar.
         </Text>
 
         <Stack direction={{ base: 'column', md: 'row' }} spacing={3} mb={3}>
@@ -492,6 +603,19 @@ export function TotalsPage() {
               </option>
             ))}
           </Select>
+          <Select
+            aria-label="Proveedor"
+            value={counterparty}
+            onChange={e => setCounterparty(e.target.value)}
+            isDisabled={loadingCounterparties}
+          >
+            <option value="">Todos los proveedores</option>
+            {counterparties.map((c) => (
+              <option key={c._id || c.id} value={c._id || c.id}>
+                {c.name || 'Proveedor'}
+              </option>
+            ))}
+          </Select>
           <Select aria-label="Estado" value={status} onChange={e => setStatus(e.target.value)}>
             <option value="">Todos los estados</option>
             <option value="pending">Pendiente</option>
@@ -505,7 +629,20 @@ export function TotalsPage() {
           </Select>
         </Stack>
 
-        <HStack spacing={3}>
+        <HStack spacing={3} flexWrap="wrap">
+          <Select
+            maxW="260px"
+            aria-label="Ámbito PDF proveedores"
+            value={providerPdfScope}
+            onChange={(e) => setProviderPdfScope(e.target.value)}
+          >
+            <option value="all">PDF proveedores: pendiente y vencido</option>
+            <option value="pending">PDF proveedores: solo pendiente</option>
+            <option value="overdue">PDF proveedores: solo vencido</option>
+          </Select>
+          <Button bg={btnBg} color={btnColor} _hover={{ bg: btnHover }} onClick={handleExportPendingOverdueByCounterpartyPdf}>
+            PDF por proveedor
+          </Button>
           <Button bg={btnBg} color={btnColor} _hover={{ bg: btnHover }} onClick={handleExportOverduePdf}>
             PDF vencidos
           </Button>

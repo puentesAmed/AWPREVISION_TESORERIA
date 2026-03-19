@@ -190,6 +190,7 @@ export function CalendarPage() {
   const [filters, setFilters] = useState({
     accountId: "",
     categoryId: "",
+    counterpartyId: "",
     month: "",
     year: "",
     status: "",
@@ -227,6 +228,18 @@ export function CalendarPage() {
     e.extendedProps?.category?.name ??
     (fallbackId ? `Categoría ${fallbackId}` : "—");
 
+  const getCounterpartyId = (e) =>
+    String(
+      e.counterparty?._id ?? e.counterpartyId ?? e.counterparty ??
+      e.extendedProps?.counterparty?._id ?? e.extendedProps?.counterpartyId ?? e.extendedProps?.counterparty ?? ""
+    ) || "";
+
+  const getCounterpartyName = (e) =>
+    e.counterparty?.name ??
+    e.counterpartyName ??
+    e.extendedProps?.counterparty?.name ??
+    "Sin proveedor";
+
   const getType = (e) => e.extendedProps?.type ?? e.type ?? undefined;
   const getAmount = (e) => {
     const type = getType(e);
@@ -247,6 +260,8 @@ export function CalendarPage() {
         const accountAlias = getAccountAlias(e, accountId);
         const categoryId = getCategoryId(e);
         const categoryName = getCategoryName(e, categoryId);
+        const counterpartyId = getCounterpartyId(e);
+        const counterpartyName = getCounterpartyName(e);
         const type = getType(e);
         const amount = getAmount(e);
 
@@ -267,6 +282,8 @@ export function CalendarPage() {
           _accountAlias: accountAlias,
           _categoryId: categoryId,
           _categoryName: categoryName,
+          _counterpartyId: counterpartyId,
+          _counterpartyName: counterpartyName,
           _type: type,
           _amount: amount,
           _accountColor: accountColor,
@@ -279,6 +296,7 @@ export function CalendarPage() {
             type,
             accountAlias,
             categoryName,
+            counterpartyId,
             concept: e.concept ?? e.extendedProps?.concept ?? "",
             counterparty: e.counterparty ?? e.extendedProps?.counterparty ?? null,
             accountColor,
@@ -302,6 +320,7 @@ export function CalendarPage() {
     let list = source;
     if (f.accountId) list = list.filter(e => e._accountId === f.accountId);
     if (f.categoryId) list = list.filter(e => e._categoryId === f.categoryId);
+    if (f.counterpartyId) list = list.filter(e => e._counterpartyId === f.counterpartyId);
     if (f.month) list = list.filter(e => (new Date(e.start + "T00:00:00Z").getUTCMonth() + 1) === Number(f.month));
     if (f.year)  list = list.filter(e => new Date(e.start + "T00:00:00Z").getUTCFullYear() === Number(f.year));
     return list;
@@ -312,6 +331,7 @@ export function CalendarPage() {
     let list = source;
     if (f.accountId) list = list.filter(e => e._accountId === f.accountId);
     if (f.categoryId) list = list.filter(e => e._categoryId === f.categoryId);
+    if (f.counterpartyId) list = list.filter(e => e._counterpartyId === f.counterpartyId);
     if (f.month) list = list.filter(e => (new Date(e.start + "T00:00:00Z").getUTCMonth() + 1) === Number(f.month));
     if (f.year) list = list.filter(e => new Date(e.start + "T00:00:00Z").getUTCFullYear() === Number(f.year));
 
@@ -405,6 +425,17 @@ export function CalendarPage() {
     for (const e of allEvents) {
       if (!e._categoryId) continue;
       m.set(e._categoryId, e._categoryName || `Categoría ${e._categoryId}`);
+    }
+    return Array.from(m.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "es"));
+  }, [allEvents]);
+
+  const counterpartyOptions = useMemo(() => {
+    const m = new Map();
+    for (const e of allEvents) {
+      if (!e._counterpartyId) continue;
+      m.set(e._counterpartyId, e._counterpartyName || "Sin proveedor");
     }
     return Array.from(m.entries())
       .map(([value, label]) => ({ value, label }))
@@ -754,6 +785,19 @@ export function CalendarPage() {
         </label>
 
         <label style={{ gap:10, display:"flex", alignItems:"center" }}>
+          Proveedor:
+          <select
+            value={filters.counterpartyId}
+            onChange={(e) => setFilters((f) => ({ ...f, counterpartyId: e.target.value }))}
+          >
+            <option value="">Todos</option>
+            {useMemo(() => counterpartyOptions, [counterpartyOptions]).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
           Mes:
           <select
             value={filters.month}
@@ -797,7 +841,7 @@ export function CalendarPage() {
           bg={buttonBg}
           color={buttonColor}
           _hover={{ bg: buttonHover }}
-          onClick={() => setFilters({ accountId:"", categoryId:"", month:"", year:"", status:"" })}
+          onClick={() => setFilters({ accountId:"", categoryId:"", counterpartyId:"", month:"", year:"", status:"" })}
         >
           Limpiar filtros
         </Button>

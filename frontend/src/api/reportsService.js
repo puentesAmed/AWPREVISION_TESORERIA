@@ -6,5 +6,8 @@ export const getTotals = (params = {}) =>
 export const getOverdue = (params = {}) =>
   api.get('/reports/overdue', { params }).then(r => r.data);
 
+export const getPendingOverdueByCounterparty = (params = {}) =>
+  api.get('/reports/pending-overdue-by-counterparty', { params }).then(r => r.data);
+
 export const getPendingPerAccountMonth = (params = {}) =>
   api.get('/reports/pending-per-account-month', { params }).then(r => r.data);
