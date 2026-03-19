@@ -224,7 +224,7 @@ export const calendar = async (req, res) => {
 
     const items = await Cashflow.find(
       q,
-      { date: 1, amount: 1, type: 1, account: 1, counterparty: 1, category: 1, status: 1 }
+      { date: 1, amount: 1, type: 1, account: 1, counterparty: 1, category: 1, status: 1, concept: 1 }
     )
       .sort({ date: 1 })
       .limit(1000)
@@ -268,6 +268,7 @@ export const calendar = async (req, res) => {
           account: i.account,
           category: i.category,
           counterparty: i.counterparty,
+          concept: i.concept || '',
           dateYMD: ymd,
         },
       };

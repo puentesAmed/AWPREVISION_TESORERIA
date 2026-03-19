@@ -268,6 +268,7 @@ export function CalendarPage() {
             type,
             accountAlias,
             categoryName,
+            concept: e.concept ?? e.extendedProps?.concept ?? "",
             counterparty: e.counterparty ?? e.extendedProps?.counterparty ?? null,
             accountColor,
             status,
@@ -527,6 +528,7 @@ export function CalendarPage() {
     }
 
     const prov   = xp?.counterparty?.name || xp?.accountAlias || "—";
+    const concept = String(xp?.concept || "").trim();
     const amount = Number(xp?.amount || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
     const ui     = xp?.uiStatus;
     const ymd    = ev.startStr?.slice(0,10);
@@ -573,16 +575,30 @@ export function CalendarPage() {
     return (
       <div style={{ display:"flex", flexDirection:"column", gap:2, justifyContent:"space-between", padding:"0 2px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:6, justifyContent:"space-between" }}>
-          <span style={{
-            fontWeight: 600,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: isMobile ? "clip" : "ellipsis",
-            whiteSpace: isMobile ? "normal" : "nowrap",
-            wordBreak: "break-word",
-          }}>
-            {prov}
-          </span>
+          <div style={{ minWidth: 0, display:"flex", flexDirection:"column", gap:2 }}>
+            <span style={{
+              fontWeight: 600,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: isMobile ? "clip" : "ellipsis",
+              whiteSpace: isMobile ? "normal" : "nowrap",
+              wordBreak: "break-word",
+            }}>
+              {prov}
+            </span>
+            {concept && (
+              <span style={{
+                fontSize: 11,
+                opacity: 0.9,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}>
+                {concept}
+              </span>
+            )}
+          </div>
 
           {ui && ui !== "pending" && (
             <span style={badgeStyle}>
@@ -623,6 +639,7 @@ export function CalendarPage() {
     }
 
     const prov   = xp?.counterparty?.name || xp?.accountAlias || "—";
+    const concept = String(xp?.concept || "").trim();
     const amount = Number(xp.amount ?? 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
     const ui     = xp?.uiStatus;
 
@@ -635,11 +652,25 @@ export function CalendarPage() {
     return (
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%" }}>
         <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
-          <span style={{
-            minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:600
-          }}>
-            {prov}
-          </span>
+          <div style={{ minWidth:0, display:"flex", flexDirection:"column", gap:2 }}>
+            <span style={{
+              minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:600
+            }}>
+              {prov}
+            </span>
+            {concept && (
+              <span style={{
+                minWidth:0,
+                overflow:"hidden",
+                textOverflow:"ellipsis",
+                whiteSpace:"nowrap",
+                fontSize:11,
+                opacity:0.85,
+              }}>
+                {concept}
+              </span>
+            )}
+          </div>
           {ui && ui!=="pending" && <span style={badgeStyle}>
             {ui==="paid" ? "Pagado" : ui==="overdue" ? "Vencido" : "Impagado"}
           </span>}
@@ -847,4 +878,3 @@ export function CalendarPage() {
     </div>
   );
 }
-
