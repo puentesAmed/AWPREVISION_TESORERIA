@@ -195,6 +195,9 @@ export function CalendarPage() {
   const primaryTextColor = useColorModeValue("#1A202C", "#F7FAFC");
   const secondaryTextColor = useColorModeValue("#4A5568", "#CBD5E0");
   const amountTextColor = useColorModeValue("#1A202C", "#F7FAFC");
+  const mobileCardBg = useColorModeValue("#FFFFFF", "#1A202C");
+  const mobileCardBorder = useColorModeValue("#E2E8F0", "#2D3748");
+  const mobileCardShadow = useColorModeValue("0 4px 12px rgba(15, 23, 42, 0.08)", "0 6px 16px rgba(0, 0, 0, 0.28)");
 
   // Filtros
   const [filters, setFilters] = useState({
@@ -711,6 +714,26 @@ export function CalendarPage() {
 
     if (isGroup) {
       const sumTxt = Number(xp.sum || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
+      if (isMobile) {
+        return (
+          <div style={{
+            display:"flex",
+            flexDirection:"column",
+            gap:6,
+            width:"100%",
+            padding:"10px 12px",
+            borderRadius:12,
+            background: mobileCardBg,
+            border:`1px solid ${mobileCardBorder}`,
+            boxShadow: mobileCardShadow,
+          }}>
+            <strong style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"normal", wordBreak:"break-word", color: primaryTextColor }}>
+              {xp.accAlias || "Cuenta"}
+            </strong>
+            <div style={{ fontWeight:700, color: amountTextColor, textAlign:"right" }}>{sumTxt}€</div>
+          </div>
+        );
+      }
       return (
         <div style={{ display:"flex", flexDirection:isMobile ? "column" : "row", alignItems:isMobile ? "stretch" : "center", justifyContent:"space-between", gap:6, width:"100%" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
@@ -749,7 +772,18 @@ export function CalendarPage() {
 
     if (isMobile) {
       return (
-        <div style={{ display:"flex", flexDirection:"column", gap:6, width:"100%", minWidth:0 }}>
+        <div style={{
+          display:"flex",
+          flexDirection:"column",
+          gap:8,
+          width:"100%",
+          minWidth:0,
+          padding:"10px 12px",
+          borderRadius:12,
+          background: mobileCardBg,
+          border:`1px solid ${mobileCardBorder}`,
+          boxShadow: mobileCardShadow,
+        }}>
           <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:8, minWidth:0 }}>
             <div style={{ minWidth:0, flex:"1 1 auto", display:"flex", flexDirection:"column", gap:2 }}>
               <span style={{
@@ -784,7 +818,7 @@ export function CalendarPage() {
                 {ui==="paid" ? "Pagado" : ui==="overdue" ? "Vencido" : "Impagado"}
               </span>}
             </div>
-            <strong style={{ color: amountTextColor, marginLeft:"auto", textAlign:"right", overflowWrap:"anywhere" }}>
+            <strong style={{ color: amountTextColor, marginLeft:"auto", textAlign:"right", overflowWrap:"anywhere", fontSize:15 }}>
               {amount}€
             </strong>
           </div>

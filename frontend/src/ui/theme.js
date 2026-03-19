@@ -138,24 +138,17 @@ const styles = {
         fontWeight: 700,
       }),
       ".fc .fc-list-event td": (p) => ({
-        background:
-          p.colorMode === "light"
-            ? "var(--chakra-colors-white)"
-            : "var(--chakra-colors-neutral-900)",
+        background: "transparent",
         color:
           p.colorMode === "light"
             ? "var(--chakra-colors-neutral-900)"
             : "var(--chakra-colors-neutral-50)",
-        borderColor:
-          p.colorMode === "light"
-            ? "var(--chakra-colors-neutral-200)"
-            : "var(--chakra-colors-neutral-700)",
+        borderColor: "transparent",
+        paddingTop: "4px",
+        paddingBottom: "4px",
       }),
       ".fc .fc-list-event:hover td, .fc .fc-list-event.fc-event-selected td": (p) => ({
-        background:
-          p.colorMode === "light"
-            ? "var(--chakra-colors-accent-50)"
-            : "rgba(255,255,255,0.08)",
+        background: "transparent",
         color:
           p.colorMode === "light"
             ? "var(--chakra-colors-neutral-900)"
