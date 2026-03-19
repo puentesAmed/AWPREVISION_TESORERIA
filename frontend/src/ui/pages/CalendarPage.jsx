@@ -49,7 +49,7 @@ const computeUiStatus = (persistedStatus, ymd) => {
 };
 
 /* ========= Menú de estado (botón) ========= */
-function EventStatusMenu({ value, onChange }) {
+function EventStatusMenu({ onChange }) {
   const [open, setOpen] = React.useState(false);
   const [pos, setPos] = React.useState({ top: 0, left: 0, width: 168 });
   const btnRef = React.useRef(null);
@@ -166,11 +166,12 @@ export function CalendarPage() {
   // Mantener posición visible del calendario
   const [viewDate, setViewDate] = useState(new Date());
 
-  // Antes usabas calKey para forzar remount; ya no lo necesitamos para totales.
+  // Mantiene un remount controlado para refrescar los totales del pie en desktop.
   const isMobile = useBreakpointValue({ base: true, md: false });
 
   // Totales por día
   const [dayTotals, setDayTotals] = useState(new Map());
+  const [calKey, setCalKey] = useState(0);
   const SUM_ABSOLUTE = false;
 
   // Botones
@@ -430,12 +431,12 @@ export function CalendarPage() {
     }
     setDayTotals(map);
 
-    // fuerza un repintado ligero sin mover la fecha/vista
-    requestAnimationFrame(() => {
-      const api = ref.current?.getApi?.();
-      api?.updateSize();
-    });
-  }, [allEvents, filters]);
+    // FullCalendar no vuelve a disparar dayCellDidMount cuando cambian
+    // los datos en caliente; remount controlado para restaurar el pie.
+    if (!isMobile) {
+      setCalKey((k) => k + 1);
+    }
+  }, [allEvents, filters, isMobile, SUM_ABSOLUTE]);
 
   // click evento (ignora clics en el botón/menú)
   const onEventClick = async (info) => {
@@ -591,7 +592,7 @@ export function CalendarPage() {
             </span>
           )}
 
-          <EventStatusMenu value={ui || "pending"} onChange={handleStatusChange} />
+          <EventStatusMenu onChange={handleStatusChange} />
         </div>
 
         <div style={{ fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:600 }}>
@@ -646,7 +647,7 @@ export function CalendarPage() {
 
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <strong>{amount}€</strong>
-          <EventStatusMenu value={ui || "pending"} onChange={(next)=> {
+          <EventStatusMenu onChange={(next)=> {
             const ymd = ev.startStr?.slice(0,10);
             const id  = ev.id || xp.cashflowId || xp.id || xp._id;
             if (!id) return;
@@ -780,7 +781,7 @@ export function CalendarPage() {
         </div>
 
         <FullCalendar
-          key={`cal-${isMobile ? 'm' : 'd'}`}        
+          key={`cal-${isMobile ? 'm' : 'd'}-${calKey}`}
           ref={ref}
           plugins={[dayGridPlugin, interactionPlugin, listPlugin]}
           locale={esLocale}
