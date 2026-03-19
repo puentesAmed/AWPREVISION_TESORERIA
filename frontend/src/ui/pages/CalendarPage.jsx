@@ -192,6 +192,9 @@ export function CalendarPage() {
   const buttonBg = useColorModeValue("brand.500", "accent.500");
   const buttonColor = useColorModeValue("white", "black");
   const buttonHover = useColorModeValue("brand.600", "accent.600");
+  const primaryTextColor = useColorModeValue("#1A202C", "#F7FAFC");
+  const secondaryTextColor = useColorModeValue("#4A5568", "#CBD5E0");
+  const amountTextColor = useColorModeValue("#1A202C", "#F7FAFC");
 
   // Filtros
   const [filters, setFilters] = useState({
@@ -659,6 +662,7 @@ export function CalendarPage() {
           <div style={{ minWidth: 0, display:"flex", flexDirection:"column", gap:2 }}>
             <span style={{
               fontWeight: 600,
+              color: primaryTextColor,
               minWidth: 0,
               overflow: "hidden",
               textOverflow: isMobile ? "clip" : "ellipsis",
@@ -670,7 +674,7 @@ export function CalendarPage() {
             {concept && (
               <span style={{
                 fontSize: 11,
-                opacity: 0.9,
+                color: secondaryTextColor,
                 minWidth: 0,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -692,7 +696,7 @@ export function CalendarPage() {
           <EventStatusMenu onChange={handleStatusChange} />
         </div>
 
-        <div style={{ fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:600 }}>
+        <div style={{ fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:600, color: amountTextColor }}>
           {amount}€
         </div>
       </div>
@@ -735,7 +739,12 @@ export function CalendarPage() {
         <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
           <div style={{ minWidth:0, display:"flex", flexDirection:"column", gap:2 }}>
             <span style={{
-              minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:600
+              minWidth:0,
+              overflow:"hidden",
+              textOverflow:"ellipsis",
+              whiteSpace:"nowrap",
+              fontWeight:600,
+              color: primaryTextColor,
             }}>
               {prov}
             </span>
@@ -746,7 +755,7 @@ export function CalendarPage() {
                 textOverflow:"ellipsis",
                 whiteSpace:"nowrap",
                 fontSize:11,
-                opacity:0.85,
+                color: secondaryTextColor,
               }}>
                 {concept}
               </span>
@@ -758,7 +767,7 @@ export function CalendarPage() {
         </div>
 
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <strong>{amount}€</strong>
+          <strong style={{ color: amountTextColor }}>{amount}€</strong>
           <EventStatusMenu onChange={(next)=> {
             const ymd = ev.startStr?.slice(0,10);
             const id  = ev.id || xp.cashflowId || xp.id || xp._id;

@@ -54,6 +54,9 @@ const styles = {
           ? "var(--chakra-colors-accent-50)"
           : "var(--chakra-colors-neutral-800)",
         "--fc-page-bg-color": "transparent",
+        "--fc-list-event-hover-bg-color": isLight
+          ? "var(--chakra-colors-accent-50)"
+          : "rgba(255,255,255,0.08)",
       },
       ".fc .fc-col-header-cell-cushion": {
         textTransform: "capitalize",
@@ -114,12 +117,55 @@ const styles = {
       ".fc .fc-list-day-cushion": (p) => ({
         borderRadius: "12px",
         margin: "6px 8px",
-        background: p.colorMode === "light" ? "white" : "var(--chakra-colors-neutral-800)",
+        background: p.colorMode === "light"
+          ? "var(--chakra-colors-neutral-100)"
+          : "var(--chakra-colors-neutral-800)",
         border: "1px solid",
         borderColor:
           p.colorMode === "light"
             ? "var(--chakra-colors-neutral-200)"
             : "var(--chakra-colors-neutral-700)",
+        color:
+          p.colorMode === "light"
+            ? "var(--chakra-colors-neutral-900)"
+            : "var(--chakra-colors-neutral-50)",
+      }),
+      ".fc .fc-list-day-cushion a": (p) => ({
+        color:
+          p.colorMode === "light"
+            ? "var(--chakra-colors-neutral-900)"
+            : "var(--chakra-colors-neutral-50)",
+        fontWeight: 700,
+      }),
+      ".fc .fc-list-event td": (p) => ({
+        background:
+          p.colorMode === "light"
+            ? "var(--chakra-colors-white)"
+            : "var(--chakra-colors-neutral-900)",
+        color:
+          p.colorMode === "light"
+            ? "var(--chakra-colors-neutral-900)"
+            : "var(--chakra-colors-neutral-50)",
+        borderColor:
+          p.colorMode === "light"
+            ? "var(--chakra-colors-neutral-200)"
+            : "var(--chakra-colors-neutral-700)",
+      }),
+      ".fc .fc-list-event:hover td, .fc .fc-list-event.fc-event-selected td": (p) => ({
+        background:
+          p.colorMode === "light"
+            ? "var(--chakra-colors-accent-50)"
+            : "rgba(255,255,255,0.08)",
+        color:
+          p.colorMode === "light"
+            ? "var(--chakra-colors-neutral-900)"
+            : "var(--chakra-colors-neutral-50)",
+      }),
+      ".fc .fc-list-event-title a": (p) => ({
+        color:
+          p.colorMode === "light"
+            ? "var(--chakra-colors-neutral-900)"
+            : "var(--chakra-colors-neutral-50)",
       }),
       ".fc .fc-list-event": {
         whiteSpace: "normal",
