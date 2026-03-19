@@ -401,8 +401,18 @@ const typeMap = (v) => {
 
 const resolveImportType = (amount, rawType) => {
   const n = Number(amount);
-  if (Number.isFinite(n) && n < 0) return 'in';
-  return norm(rawType) ? typeMap(rawType) : 'in';
+  const hasExplicitType = !!norm(rawType);
+  const mappedType = hasExplicitType ? typeMap(rawType) : null;
+
+  if (mappedType === 'out') {
+    return Number.isFinite(n) && n < 0 ? 'in' : 'out';
+  }
+
+  if (mappedType === 'in') {
+    return 'in';
+  }
+
+  return Number.isFinite(n) && n < 0 ? 'out' : 'in';
 };
 
 
