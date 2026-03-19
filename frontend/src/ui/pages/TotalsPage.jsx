@@ -266,7 +266,7 @@ export function TotalsPage() {
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api.js';
-import { getTotals, getOverdue, getPendingPerAccountMonth } from '@/api/reportsService.js';
+import { getTotals, getOverdue, getPendingOverdueByCounterparty, getPendingPerAccountMonth } from '@/api/reportsService.js';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
@@ -290,6 +290,23 @@ import {
 } from '@chakra-ui/react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
+const TOTALS_STATUS_OPTIONS = [
+  { value: 'cancelled', label: 'Cancelado' },
+  { value: 'paid', label: 'Pagado' },
+  { value: 'pending', label: 'Pendiente' },
+];
+
+const GRANULARITY_OPTIONS = [
+  { value: 'day', label: 'Día' },
+  { value: 'month', label: 'Mes' },
+  { value: 'week', label: 'Semana' },
+];
+
+const FLOW_TYPE_OPTIONS = [
+  { value: 'in', label: 'Cobros (in)' },
+  { value: 'out', label: 'Pagos (out)' },
+];
+
 export function TotalsPage() {
   const [from, setFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 30);
@@ -298,8 +315,11 @@ export function TotalsPage() {
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [granularity, setGranularity] = useState('day');
   const [account, setAccount] = useState('');
+  const [category, setCategory] = useState('');
+  const [counterparty, setCounterparty] = useState('');
   const [status, setStatus] = useState('');
   const [flowType, setFlowType] = useState('out');
+  const [providerPdfScope, setProviderPdfScope] = useState('all');
 
   // Tokens de tema
   const pageBg   = useColorModeValue('neutral.50', 'neutral.900');
@@ -318,15 +338,48 @@ export function TotalsPage() {
     staleTime: 60_000,
   });
 
-  const accounts = useMemo(() => Array.isArray(accountsResp) ? accountsResp : [], [accountsResp]);
+  const accounts = useMemo(
+    () => (Array.isArray(accountsResp) ? [...accountsResp] : []).sort((a, b) =>
+      String(a.alias || a.name || '').localeCompare(String(b.alias || b.name || ''), 'es')
+    ),
+    [accountsResp]
+  );
+
+  const { data: counterpartiesResp, isLoading: loadingCounterparties } = useQuery({
+    queryKey: ['counterparties'],
+    queryFn: () => api.get('/counterparties').then(r => r.data),
+    staleTime: 60_000,
+  });
+
+  const counterparties = useMemo(
+    () => (Array.isArray(counterpartiesResp) ? [...counterpartiesResp] : []).sort((a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''), 'es')
+    ),
+    [counterpartiesResp]
+  );
+
+  const { data: categoriesResp, isLoading: loadingCategories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => api.get('/categories').then(r => r.data),
+    staleTime: 60_000,
+  });
+
+  const categories = useMemo(
+    () => (Array.isArray(categoriesResp) ? [...categoriesResp] : []).sort((a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''), 'es')
+    ),
+    [categoriesResp]
+  );
 
   const { data: totalsResp, isLoading } = useQuery({
-    queryKey: ['totals', from, to, account, granularity, status, flowType],
+    queryKey: ['totals', from, to, account, category, counterparty, granularity, status, flowType],
     queryFn: () =>
       getTotals({
         from,
         to,
         account,
+        category: category || undefined,
+        counterparty: counterparty || undefined,
         groupBy: 'date',
         granularity,
         status: status || undefined,
@@ -355,7 +408,12 @@ export function TotalsPage() {
   // ====== PDF: Vencidos ======
   const handleExportOverduePdf = async () => {
     try {
-      const res = await getOverdue({ to });
+      const res = await getOverdue({
+        to,
+        account: account || undefined,
+        category: category || undefined,
+        counterparty: counterparty || undefined,
+      });
       const rows = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
       if (!Array.isArray(rows)) return alert('La API de vencidos no devolvió array');
 
@@ -422,7 +480,14 @@ export function TotalsPage() {
   // ====== PDF: Pendientes por cuenta y mes ======
   const handleExportPendingPerAccountMonthPdf = async () => {
     try {
-      const res = await getPendingPerAccountMonth({ from, to });
+      const res = await getPendingPerAccountMonth({
+        from,
+        to,
+        account: account || undefined,
+        category: category || undefined,
+        counterparty: counterparty || undefined,
+        type: flowType || undefined,
+      });
       const rows = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
       if (!Array.isArray(rows)) return alert('La API no devolvió array');
 
@@ -463,49 +528,182 @@ export function TotalsPage() {
     }
   };
 
+  const handleExportPendingOverdueByCounterpartyPdf = async () => {
+    try {
+      const report = await getPendingOverdueByCounterparty({
+        from,
+        to,
+        account: account || undefined,
+        category: category || undefined,
+        counterparty: counterparty || undefined,
+        type: flowType || undefined,
+        scope: providerPdfScope,
+      });
+
+      const groups = Array.isArray(report?.groups) ? report.groups : [];
+      if (!groups.length) {
+        return alert('No hay registros pendientes o vencidos para ese filtro.');
+      }
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'A4' });
+      const marginX = 40;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const formatMoney = (value) =>
+        Number(value || 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' });
+      const scopeLabel =
+        providerPdfScope === 'pending' ? 'Pendientes'
+          : providerPdfScope === 'overdue' ? 'Vencidos'
+          : 'Pendientes y vencidos';
+
+      doc.setFontSize(16);
+      doc.text(`${scopeLabel} por proveedor`, marginX, 40);
+      doc.setFontSize(10);
+      doc.text(`Desde: ${from}  Hasta: ${to}`, marginX, 58);
+      doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, marginX, 72);
+
+      let currentY = 92;
+      groups.forEach((group, index) => {
+        if (currentY > doc.internal.pageSize.getHeight() - 140) {
+          doc.addPage();
+          currentY = 50;
+        }
+
+        doc.setFontSize(12);
+        doc.text(
+          `${group.counterpartyName} · Total ${formatMoney(group.total)} · Pendiente ${formatMoney(group.pendingTotal)} · Vencido ${formatMoney(group.overdueTotal)}`,
+          marginX,
+          currentY
+        );
+
+        autoTable(doc, {
+          startY: currentY + 8,
+          head: [['Fecha', 'Estado', 'Cuenta', 'Categoría', 'Concepto', 'Importe']],
+          body: group.items.map((item) => ([
+            item.date ? new Date(item.date).toISOString().slice(0, 10) : '',
+            item.bucket === 'overdue' ? 'Vencido' : 'Pendiente',
+            item.account?.alias || '—',
+            item.category?.name || '—',
+            item.concept || '—',
+            formatMoney(item.amountAbs),
+          ])),
+          margin: { left: marginX, right: marginX },
+          tableWidth: pageWidth - marginX * 2,
+          styles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak', valign: 'middle' },
+          headStyles: { fillColor: [33, 37, 41] },
+          columnStyles: {
+            0: { cellWidth: 72 },
+            1: { cellWidth: 70 },
+            2: { cellWidth: 90 },
+            3: { cellWidth: 90 },
+            4: { cellWidth: 150 },
+            5: { cellWidth: 80, halign: 'right' },
+          },
+        });
+
+        currentY = doc.lastAutoTable.finalY + (index === groups.length - 1 ? 18 : 24);
+      });
+
+      doc.setFontSize(12);
+      doc.text(
+        `TOTAL INFORME: ${formatMoney(report.total)} · Pendiente ${formatMoney(report.pendingTotal)} · Vencido ${formatMoney(report.overdueTotal)}`,
+        marginX,
+        currentY
+      );
+
+      doc.save(`pendientes_vencidos_proveedor_${from}_${to}.pdf`);
+    } catch {
+      alert('No se pudo generar el PDF por proveedor');
+    }
+  };
+
   return (
     <Box bg={pageBg} minH="calc(100vh - 120px)" p={6}>
       <Box bg={cardBg} border="1px solid" borderColor={border} rounded="lg" p={6} mb={6}>
         <Heading size="md" mb={2}>Totales</Heading>
         <Text fontSize="sm" color={subtle} mb={4}>
-          Filtra por fechas, cuenta, estado y tipo para visualizar y exportar.
+          Filtra por fechas, entidades y estado para visualizar y exportar con más contexto.
         </Text>
 
-        <Stack direction={{ base: 'column', md: 'row' }} spacing={3} mb={3}>
-          <Input aria-label="Desde" type="date" value={from} onChange={e => setFrom(e.target.value)} />
-          <Input aria-label="Hasta" type="date" value={to} onChange={e => setTo(e.target.value)} />
-          <Select aria-label="Granularidad" value={granularity} onChange={e => setGranularity(e.target.value)}>
-            <option value="day">Día</option>
-            <option value="week">Semana</option>
-            <option value="month">Mes</option>
-          </Select>
-          <Select
-            aria-label="Cuenta"
-            value={account}
-            onChange={e => setAccount(e.target.value)}
-            isDisabled={loadingAccounts}
-          >
-            <option value="">Todas</option>
-            {accounts.map(a => (
-              <option key={a._id || a.id} value={a._id || a.id}>
-                {a.alias || a.name || 'Cuenta'}
-              </option>
-            ))}
-          </Select>
-          <Select aria-label="Estado" value={status} onChange={e => setStatus(e.target.value)}>
-            <option value="">Todos los estados</option>
-            <option value="pending">Pendiente</option>
-            <option value="paid">Pagado</option>
-            <option value="cancelled">Cancelado</option>
-          </Select>
-          <Select aria-label="Tipo de flujo" value={flowType} onChange={e => setFlowType(e.target.value)}>
-            <option value="out">Pagos (out)</option>
-            <option value="in">Cobros (in)</option>
-            <option value="">Todos</option>
-          </Select>
+        <Stack spacing={3} mb={3}>
+          <Stack direction={{ base: 'column', md: 'row' }} spacing={3}>
+            <Input aria-label="Desde" type="date" value={from} onChange={e => setFrom(e.target.value)} />
+            <Input aria-label="Hasta" type="date" value={to} onChange={e => setTo(e.target.value)} />
+            <Select aria-label="Granularidad" value={granularity} onChange={e => setGranularity(e.target.value)}>
+              {GRANULARITY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+          </Stack>
+
+          <Stack direction={{ base: 'column', md: 'row' }} spacing={3}>
+            <Select
+              aria-label="Cuenta"
+              value={account}
+              onChange={e => setAccount(e.target.value)}
+              isDisabled={loadingAccounts}
+            >
+              <option value="">Todas las cuentas</option>
+              {accounts.map(a => (
+                <option key={a._id || a.id} value={a._id || a.id}>
+                  {a.alias || a.name || 'Cuenta'}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Proveedor"
+              value={counterparty}
+              onChange={e => setCounterparty(e.target.value)}
+              isDisabled={loadingCounterparties}
+            >
+              <option value="">Todos los proveedores</option>
+              {counterparties.map((c) => (
+                <option key={c._id || c.id} value={c._id || c.id}>
+                  {c.name || 'Proveedor'}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Categoría"
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              isDisabled={loadingCategories}
+            >
+              <option value="">Todas las categorías</option>
+              {categories.map((c) => (
+                <option key={c._id || c.id} value={c._id || c.id}>
+                  {c.name || 'Categoría'}
+                </option>
+              ))}
+            </Select>
+            <Select aria-label="Estado" value={status} onChange={e => setStatus(e.target.value)}>
+              <option value="">Todos los estados</option>
+              {TOTALS_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+            <Select aria-label="Tipo de flujo" value={flowType} onChange={e => setFlowType(e.target.value)}>
+              <option value="">Todos</option>
+              {FLOW_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+          </Stack>
         </Stack>
 
-        <HStack spacing={3}>
+        <HStack spacing={3} flexWrap="wrap">
+          <Select
+            maxW="260px"
+            aria-label="Ámbito PDF proveedores"
+            value={providerPdfScope}
+            onChange={(e) => setProviderPdfScope(e.target.value)}
+          >
+            <option value="all">PDF proveedores: pendiente y vencido</option>
+            <option value="pending">PDF proveedores: solo pendiente</option>
+            <option value="overdue">PDF proveedores: solo vencido</option>
+          </Select>
+          <Button bg={btnBg} color={btnColor} _hover={{ bg: btnHover }} onClick={handleExportPendingOverdueByCounterpartyPdf}>
+            PDF por proveedor
+          </Button>
           <Button bg={btnBg} color={btnColor} _hover={{ bg: btnHover }} onClick={handleExportOverduePdf}>
             PDF vencidos
           </Button>

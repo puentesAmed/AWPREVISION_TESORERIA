@@ -1,7 +1,7 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { createForecast } from "@/api/forecastsService.js";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api.js";
 import {
   Box,
@@ -15,7 +15,12 @@ import {
 } from "@chakra-ui/react";
 
 export function NewForecastModal({ date = null, onClose }) {
-  const { register, handleSubmit, reset } = useForm({
+  const queryClient = useQueryClient();
+  const [isCreatingCounterparty, setIsCreatingCounterparty] = useState(false);
+  const [newCounterpartyName, setNewCounterpartyName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { register, handleSubmit, reset, setValue, watch } = useForm({
     defaultValues: {
       date: date || "",
       amount: "",
@@ -26,6 +31,7 @@ export function NewForecastModal({ date = null, onClose }) {
       concept: "",
     },
   });
+  const selectedCounterparty = watch("counterparty");
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
@@ -46,6 +52,17 @@ export function NewForecastModal({ date = null, onClose }) {
     if (date) reset((v) => ({ ...v, date }));
   }, [date, reset]);
 
+  const normalizedCounterparties = useMemo(
+    () =>
+      counterparties
+        .map((c) => ({
+          ...c,
+          normalizedName: String(c.name || "").trim().toLocaleLowerCase("es-ES"),
+        }))
+        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es")),
+    [counterparties]
+  );
+
   //const bgCard = useColorModeValue("neutral.100", "neutral.800");
   const inputBg = useColorModeValue("neutral.50", "neutral.700");
   const inputColor = useColorModeValue("neutral.800", "neutral.100");
@@ -56,20 +73,50 @@ export function NewForecastModal({ date = null, onClose }) {
   const buttonSecondaryBg = useColorModeValue("neutral.300", "neutral.600");
   const buttonSecondaryHover = useColorModeValue("neutral.400", "neutral.500");
 
-  const onSubmit = async (vals) => {
-    const payload = {
-      ...vals,
-      amount: Number(vals.amount),
-      date: vals.date ? new Date(vals.date).toISOString() : undefined,
-      category: vals.category || undefined,
-    };
+  const resolveCounterpartyId = async () => {
+    if (!isCreatingCounterparty) return selectedCounterparty || undefined;
 
+    const name = newCounterpartyName.trim();
+    if (!name) {
+      throw new Error("EMPTY_COUNTERPARTY_NAME");
+    }
+
+    const normalizedName = name.toLocaleLowerCase("es-ES");
+    const existing = normalizedCounterparties.find((c) => c.normalizedName === normalizedName);
+    if (existing?._id) {
+      setValue("counterparty", existing._id);
+      return existing._id;
+    }
+
+    const { data } = await api.post("/counterparties", { name });
+    await queryClient.invalidateQueries({ queryKey: ["counterparties"] });
+    setValue("counterparty", data?._id || "");
+    return data?._id || undefined;
+  };
+
+  const onSubmit = async (vals) => {
     try {
+      setIsSubmitting(true);
+      const counterpartyId = await resolveCounterpartyId();
+      const payload = {
+        ...vals,
+        amount: Number(vals.amount),
+        date: vals.date ? new Date(vals.date).toISOString() : undefined,
+        category: vals.category || undefined,
+        counterparty: counterpartyId,
+      };
+
       await createForecast(payload);
       onClose();
     } catch (err) {
       console.error("Error al crear forecast:", err.response?.data || err.message);
-      alert("Error al crear forecast. Mira la consola para más detalles.");
+      if (err.message === "EMPTY_COUNTERPARTY_NAME") {
+        alert("Escribe el nombre del proveedor antes de guardarlo.");
+      } else {
+        alert("Error al crear forecast. Mira la consola para más detalles.");
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -111,18 +158,52 @@ export function NewForecastModal({ date = null, onClose }) {
                 </option>
               ))}
             </Select>
-            <Select
-              bg={inputBg}
-              color={inputColor}
-              placeholder="Proveedor"
-              {...register("counterparty")}
-            >
-              {counterparties.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+            <Box w="100%">
+              <HStack align="stretch">
+                <Select
+                  bg={inputBg}
+                  color={inputColor}
+                  placeholder="Proveedor"
+                  {...register("counterparty")}
+                  isDisabled={isCreatingCounterparty}
+                >
+                  {normalizedCounterparties.map((c) => (
+                    <option key={c._id} value={c._id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+                <Button
+                  type="button"
+                  bg={buttonSecondaryBg}
+                  _hover={{ bg: buttonSecondaryHover }}
+                  onClick={() => {
+                    setIsCreatingCounterparty((prev) => {
+                      const next = !prev;
+                      if (!next) {
+                        setNewCounterpartyName("");
+                      } else {
+                        setValue("counterparty", "");
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  {isCreatingCounterparty ? "Usar existente" : "Nuevo"}
+                </Button>
+              </HStack>
+              {isCreatingCounterparty && (
+                <Input
+                  mt={2}
+                  placeholder="Nombre del proveedor"
+                  bg={inputBg}
+                  color={inputColor}
+                  _placeholder={{ color: placeholderColor }}
+                  value={newCounterpartyName}
+                  onChange={(e) => setNewCounterpartyName(e.target.value)}
+                />
+              )}
+            </Box>
             <Input
               type="number"
               step="0.01"
@@ -173,6 +254,7 @@ export function NewForecastModal({ date = null, onClose }) {
               bg={buttonBg}
               color={buttonColor}
               _hover={{ bg: buttonHover }}
+              isLoading={isSubmitting}
             >
               Guardar
             </Button>

@@ -48,8 +48,22 @@ const computeUiStatus = (persistedStatus, ymd) => {
   return persistedStatus;
 };
 
+const normalizeAmountByType = (amount, type) => {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return 0;
+  const abs = Math.abs(n);
+  return type === "out" ? -abs : abs;
+};
+
+const FILTER_STATUS_OPTIONS = [
+  { value: "unpaid", label: "Impagado" },
+  { value: "paid", label: "Pagado" },
+  { value: "pending", label: "Pendiente" },
+  { value: "overdue", label: "Vencido" },
+];
+
 /* ========= Menú de estado (botón) ========= */
-function EventStatusMenu({ value, onChange }) {
+function EventStatusMenu({ onChange }) {
   const [open, setOpen] = React.useState(false);
   const [pos, setPos] = React.useState({ top: 0, left: 0, width: 168 });
   const btnRef = React.useRef(null);
@@ -166,22 +180,30 @@ export function CalendarPage() {
   // Mantener posición visible del calendario
   const [viewDate, setViewDate] = useState(new Date());
 
-  // Antes usabas calKey para forzar remount; ya no lo necesitamos para totales.
+  // Mantiene un remount controlado para refrescar los totales del pie en desktop.
   const isMobile = useBreakpointValue({ base: true, md: false });
 
   // Totales por día
   const [dayTotals, setDayTotals] = useState(new Map());
+  const [calKey, setCalKey] = useState(0);
   const SUM_ABSOLUTE = false;
 
   // Botones
   const buttonBg = useColorModeValue("brand.500", "accent.500");
   const buttonColor = useColorModeValue("white", "black");
   const buttonHover = useColorModeValue("brand.600", "accent.600");
+  const primaryTextColor = useColorModeValue("#1A202C", "#F7FAFC");
+  const secondaryTextColor = useColorModeValue("#4A5568", "#CBD5E0");
+  const amountTextColor = useColorModeValue("#1A202C", "#F7FAFC");
+  const mobileCardBg = useColorModeValue("#FFFFFF", "#1A202C");
+  const mobileCardBorder = useColorModeValue("#E2E8F0", "#2D3748");
+  const mobileCardShadow = useColorModeValue("0 4px 12px rgba(15, 23, 42, 0.08)", "0 6px 16px rgba(0, 0, 0, 0.28)");
 
   // Filtros
   const [filters, setFilters] = useState({
     accountId: "",
     categoryId: "",
+    counterpartyId: "",
     month: "",
     year: "",
     status: "",
@@ -219,8 +241,24 @@ export function CalendarPage() {
     e.extendedProps?.category?.name ??
     (fallbackId ? `Categoría ${fallbackId}` : "—");
 
+  const getCounterpartyId = (e) =>
+    String(
+      e.counterparty?._id ?? e.counterpartyId ?? e.counterparty ??
+      e.extendedProps?.counterparty?._id ?? e.extendedProps?.counterpartyId ?? e.extendedProps?.counterparty ?? ""
+    ) || "";
+
+  const getCounterpartyName = (e) =>
+    e.counterparty?.name ??
+    e.counterpartyName ??
+    e.extendedProps?.counterparty?.name ??
+    "Sin proveedor";
+
   const getType = (e) => e.extendedProps?.type ?? e.type ?? undefined;
-  const getAmount = (e) => Number(e.amount ?? e.extendedProps?.amount ?? 0) || 0;
+  const getAmount = (e) => {
+    const type = getType(e);
+    const rawAmount = Number(e.amount ?? e.extendedProps?.amount ?? 0) || 0;
+    return normalizeAmountByType(rawAmount, type);
+  };
 
   // carga global
   async function loadAll() {
@@ -235,6 +273,8 @@ export function CalendarPage() {
         const accountAlias = getAccountAlias(e, accountId);
         const categoryId = getCategoryId(e);
         const categoryName = getCategoryName(e, categoryId);
+        const counterpartyId = getCounterpartyId(e);
+        const counterpartyName = getCounterpartyName(e);
         const type = getType(e);
         const amount = getAmount(e);
 
@@ -255,6 +295,8 @@ export function CalendarPage() {
           _accountAlias: accountAlias,
           _categoryId: categoryId,
           _categoryName: categoryName,
+          _counterpartyId: counterpartyId,
+          _counterpartyName: counterpartyName,
           _type: type,
           _amount: amount,
           _accountColor: accountColor,
@@ -267,6 +309,8 @@ export function CalendarPage() {
             type,
             accountAlias,
             categoryName,
+            counterpartyId,
+            concept: e.concept ?? e.extendedProps?.concept ?? "",
             counterparty: e.counterparty ?? e.extendedProps?.counterparty ?? null,
             accountColor,
             status,
@@ -289,6 +333,7 @@ export function CalendarPage() {
     let list = source;
     if (f.accountId) list = list.filter(e => e._accountId === f.accountId);
     if (f.categoryId) list = list.filter(e => e._categoryId === f.categoryId);
+    if (f.counterpartyId) list = list.filter(e => e._counterpartyId === f.counterpartyId);
     if (f.month) list = list.filter(e => (new Date(e.start + "T00:00:00Z").getUTCMonth() + 1) === Number(f.month));
     if (f.year)  list = list.filter(e => new Date(e.start + "T00:00:00Z").getUTCFullYear() === Number(f.year));
     return list;
@@ -299,6 +344,7 @@ export function CalendarPage() {
     let list = source;
     if (f.accountId) list = list.filter(e => e._accountId === f.accountId);
     if (f.categoryId) list = list.filter(e => e._categoryId === f.categoryId);
+    if (f.counterpartyId) list = list.filter(e => e._counterpartyId === f.counterpartyId);
     if (f.month) list = list.filter(e => (new Date(e.start + "T00:00:00Z").getUTCMonth() + 1) === Number(f.month));
     if (f.year) list = list.filter(e => new Date(e.start + "T00:00:00Z").getUTCFullYear() === Number(f.year));
 
@@ -398,6 +444,17 @@ export function CalendarPage() {
       .sort((a, b) => a.label.localeCompare(b.label, "es"));
   }, [allEvents]);
 
+  const counterpartyOptions = useMemo(() => {
+    const m = new Map();
+    for (const e of allEvents) {
+      if (!e._counterpartyId) continue;
+      m.set(e._counterpartyId, e._counterpartyName || "Sin proveedor");
+    }
+    return Array.from(m.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "es"));
+  }, [allEvents]);
+
   const yearOptions = useMemo(() => {
     const set = new Set();
     for (const e of allEvents) {
@@ -411,7 +468,33 @@ export function CalendarPage() {
     Array.from({ length: 12 }, (_, i) => {
       const label = new Date(0, i).toLocaleString("es-ES", { month: "long" });
       return { value: String(i + 1), label: label[0].toUpperCase() + label.slice(1) };
-    }), []);
+    }).sort((a, b) => a.label.localeCompare(b.label, "es")), []);
+
+  const filterBarStyle = useMemo(() => ({
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    alignItems: isMobile ? "stretch" : "center",
+    justifyContent: "space-between",
+    width: "100%",
+    overflowX: "hidden",
+  }), [isMobile]);
+
+  const filterGroupStyle = useMemo(() => ({
+    display: "flex",
+    flexDirection: isMobile ? "column" : "row",
+    alignItems: isMobile ? "stretch" : "center",
+    gap: 8,
+    width: isMobile ? "100%" : "auto",
+    minWidth: 0,
+    flex: isMobile ? "1 1 100%" : "0 1 auto",
+  }), [isMobile]);
+
+  const filterSelectStyle = useMemo(() => ({
+    width: isMobile ? "100%" : "auto",
+    maxWidth: "100%",
+    minWidth: 0,
+  }), [isMobile]);
 
   /* ===== efectos ===== */
   useEffect(() => { loadAll(); }, []);
@@ -422,6 +505,12 @@ export function CalendarPage() {
     const map = new Map();
     const list = filterBaseForTotals(allEvents, filters);
     for (const e of list) {
+      const uiStatus =
+        e._ui ||
+        e.extendedProps?.uiStatus ||
+        computeUiStatus(e._status || e.extendedProps?.status, e.start?.slice(0, 10));
+      if (uiStatus === "paid") continue;
+
       const ymd = toLocalYMD(e.start);
       const amtRaw = Number(e._amount ?? e.extendedProps?.amount ?? 0) || 0;
       const amt = SUM_ABSOLUTE ? Math.abs(amtRaw) : amtRaw;
@@ -430,12 +519,12 @@ export function CalendarPage() {
     }
     setDayTotals(map);
 
-    // fuerza un repintado ligero sin mover la fecha/vista
-    requestAnimationFrame(() => {
-      const api = ref.current?.getApi?.();
-      api?.updateSize();
-    });
-  }, [allEvents, filters]);
+    // FullCalendar no vuelve a disparar dayCellDidMount cuando cambian
+    // los datos en caliente; remount controlado para restaurar el pie.
+    if (!isMobile) {
+      setCalKey((k) => k + 1);
+    }
+  }, [allEvents, filters, isMobile, SUM_ABSOLUTE]);
 
   // click evento (ignora clics en el botón/menú)
   const onEventClick = async (info) => {
@@ -526,6 +615,7 @@ export function CalendarPage() {
     }
 
     const prov   = xp?.counterparty?.name || xp?.accountAlias || "—";
+    const concept = String(xp?.concept || "").trim();
     const amount = Number(xp?.amount || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
     const ui     = xp?.uiStatus;
     const ymd    = ev.startStr?.slice(0,10);
@@ -572,16 +662,31 @@ export function CalendarPage() {
     return (
       <div style={{ display:"flex", flexDirection:"column", gap:2, justifyContent:"space-between", padding:"0 2px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:6, justifyContent:"space-between" }}>
-          <span style={{
-            fontWeight: 600,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: isMobile ? "clip" : "ellipsis",
-            whiteSpace: isMobile ? "normal" : "nowrap",
-            wordBreak: "break-word",
-          }}>
-            {prov}
-          </span>
+          <div style={{ minWidth: 0, display:"flex", flexDirection:"column", gap:2 }}>
+            <span style={{
+              fontWeight: 600,
+              color: primaryTextColor,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: isMobile ? "clip" : "ellipsis",
+              whiteSpace: isMobile ? "normal" : "nowrap",
+              wordBreak: "break-word",
+            }}>
+              {prov}
+            </span>
+            {concept && (
+              <span style={{
+                fontSize: 11,
+                color: secondaryTextColor,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}>
+                {concept}
+              </span>
+            )}
+          </div>
 
           {ui && ui !== "pending" && (
             <span style={badgeStyle}>
@@ -591,10 +696,10 @@ export function CalendarPage() {
             </span>
           )}
 
-          <EventStatusMenu value={ui || "pending"} onChange={handleStatusChange} />
+          <EventStatusMenu onChange={handleStatusChange} />
         </div>
 
-        <div style={{ fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:600 }}>
+        <div style={{ fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:600, color: amountTextColor }}>
           {amount}€
         </div>
       </div>
@@ -609,19 +714,40 @@ export function CalendarPage() {
 
     if (isGroup) {
       const sumTxt = Number(xp.sum || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
+      if (isMobile) {
+        return (
+          <div style={{
+            display:"flex",
+            flexDirection:"column",
+            gap:6,
+            width:"100%",
+            padding:"10px 12px",
+            borderRadius:12,
+            background: mobileCardBg,
+            border:`1px solid ${mobileCardBorder}`,
+            boxShadow: mobileCardShadow,
+          }}>
+            <strong style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"normal", wordBreak:"break-word", color: primaryTextColor }}>
+              {xp.accAlias || "Cuenta"}
+            </strong>
+            <div style={{ fontWeight:700, color: amountTextColor, textAlign:"right" }}>{sumTxt}€</div>
+          </div>
+        );
+      }
       return (
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%" }}>
+        <div style={{ display:"flex", flexDirection:isMobile ? "column" : "row", alignItems:isMobile ? "stretch" : "center", justifyContent:"space-between", gap:6, width:"100%" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
-            <strong style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            <strong style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:isMobile ? "normal" : "nowrap", wordBreak:"break-word" }}>
               {xp.accAlias || "Cuenta"}
             </strong>
           </div>
-          <div style={{ fontWeight:700 }}>{sumTxt}€</div>
+          <div style={{ fontWeight:700, color: amountTextColor, textAlign:isMobile ? "right" : "left" }}>{sumTxt}€</div>
         </div>
       );
     }
 
     const prov   = xp?.counterparty?.name || xp?.accountAlias || "—";
+    const concept = String(xp?.concept || "").trim();
     const amount = Number(xp.amount ?? 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
     const ui     = xp?.uiStatus;
 
@@ -631,33 +757,110 @@ export function CalendarPage() {
       color:"#fff"
     };
 
+    const handleStatusChange = (next) => {
+      const ymd = ev.startStr?.slice(0,10);
+      const id  = ev.id || xp.cashflowId || xp.id || xp._id;
+      if (!id) return;
+      setAllEvents(prev => prev.map(e => {
+        if (e.id !== id) return e;
+        const uiNext = computeUiStatus(next, ymd);
+        return { ...e, _status: next, _ui: uiNext,
+          extendedProps: { ...(e.extendedProps||{}), status: next, uiStatus: uiNext } };
+      }));
+      setCashflowStatus(id, next).catch(() => loadAll());
+    };
+
+    if (isMobile) {
+      return (
+        <div style={{
+          display:"flex",
+          flexDirection:"column",
+          gap:8,
+          width:"100%",
+          minWidth:0,
+          padding:"10px 12px",
+          borderRadius:12,
+          background: mobileCardBg,
+          border:`1px solid ${mobileCardBorder}`,
+          boxShadow: mobileCardShadow,
+        }}>
+          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:8, minWidth:0 }}>
+            <div style={{ minWidth:0, flex:"1 1 auto", display:"flex", flexDirection:"column", gap:2 }}>
+              <span style={{
+                minWidth:0,
+                overflow:"hidden",
+                textOverflow:"ellipsis",
+                whiteSpace:"normal",
+                wordBreak:"break-word",
+                fontWeight:600,
+                color: primaryTextColor,
+              }}>
+                {prov}
+              </span>
+              {concept && (
+                <span style={{
+                  minWidth:0,
+                  whiteSpace:"normal",
+                  wordBreak:"break-word",
+                  fontSize:11,
+                  color: secondaryTextColor,
+                }}>
+                  {concept}
+                </span>
+              )}
+            </div>
+            <EventStatusMenu onChange={handleStatusChange} />
+          </div>
+
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+              {ui && ui!=="pending" && <span style={{ ...badgeStyle, marginLeft:0 }}>
+                {ui==="paid" ? "Pagado" : ui==="overdue" ? "Vencido" : "Impagado"}
+              </span>}
+            </div>
+            <strong style={{ color: amountTextColor, marginLeft:"auto", textAlign:"right", overflowWrap:"anywhere", fontSize:15 }}>
+              {amount}€
+            </strong>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%" }}>
         <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
-          <span style={{
-            minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:600
-          }}>
-            {prov}
-          </span>
+          <div style={{ minWidth:0, display:"flex", flexDirection:"column", gap:2 }}>
+            <span style={{
+              minWidth:0,
+              overflow:"hidden",
+              textOverflow:"ellipsis",
+              whiteSpace:"nowrap",
+              fontWeight:600,
+              color: primaryTextColor,
+            }}>
+              {prov}
+            </span>
+            {concept && (
+              <span style={{
+                minWidth:0,
+                overflow:"hidden",
+                textOverflow:"ellipsis",
+                whiteSpace:"nowrap",
+                fontSize:11,
+                color: secondaryTextColor,
+              }}>
+                {concept}
+              </span>
+            )}
+          </div>
           {ui && ui!=="pending" && <span style={badgeStyle}>
             {ui==="paid" ? "Pagado" : ui==="overdue" ? "Vencido" : "Impagado"}
           </span>}
         </div>
 
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <strong>{amount}€</strong>
-          <EventStatusMenu value={ui || "pending"} onChange={(next)=> {
-            const ymd = ev.startStr?.slice(0,10);
-            const id  = ev.id || xp.cashflowId || xp.id || xp._id;
-            if (!id) return;
-            setAllEvents(prev => prev.map(e => {
-              if (e.id !== id) return e;
-              const uiNext = computeUiStatus(next, ymd);
-              return { ...e, _status: next, _ui: uiNext,
-                extendedProps: { ...(e.extendedProps||{}), status: next, uiStatus: uiNext } };
-            }));
-            setCashflowStatus(id, next).catch(() => loadAll());
-          }}/>
+          <strong style={{ color: amountTextColor }}>{amount}€</strong>
+          <EventStatusMenu onChange={handleStatusChange}/>
         </div>
       </div>
     );
@@ -667,59 +870,22 @@ export function CalendarPage() {
     <div className="page">
       <div
         className="card"
-        style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"center", justifyContent:"space-between" }}
+        style={filterBarStyle}
       >
         <Button
           bg={buttonBg}
           color={buttonColor}
           _hover={{ bg: buttonHover }}
+          width={isMobile ? "100%" : "auto"}
           onClick={() => { setSelectedDate(null); setOpen(true); }}
         >
           + Nuevo vencimiento
         </Button>
 
-        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
-          Cuenta:
-          <select
-            value={filters.accountId}
-            onChange={(e) => setFilters((f) => ({ ...f, accountId: e.target.value }))}
-          >
-            <option value="">Todas</option>
-            {useMemo(() => accountOptions, [accountOptions]).map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </label>
-
-        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
-          Categoría:
-          <select
-            value={filters.categoryId}
-            onChange={(e) => setFilters((f) => ({ ...f, categoryId: e.target.value }))}
-          >
-            <option value="">Todas</option>
-            {useMemo(() => categoryOptions, [categoryOptions]).map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </label>
-
-        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
-          Mes:
-          <select
-            value={filters.month}
-            onChange={(e) => setFilters((f) => ({ ...f, month: e.target.value }))}
-          >
-            <option value="">Todos</option>
-            {useMemo(() => monthOptions, [monthOptions]).map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </label>
-
-        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
+        <label style={filterGroupStyle}>
           Año:
           <select
+            style={filterSelectStyle}
             value={filters.year}
             onChange={(e) => setFilters((f) => ({ ...f, year: e.target.value }))}
           >
@@ -730,17 +896,73 @@ export function CalendarPage() {
           </select>
         </label>
 
-        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
+        <label style={filterGroupStyle}>
+          Categoría:
+          <select
+            style={filterSelectStyle}
+            value={filters.categoryId}
+            onChange={(e) => setFilters((f) => ({ ...f, categoryId: e.target.value }))}
+          >
+            <option value="">Todas</option>
+            {useMemo(() => categoryOptions, [categoryOptions]).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label style={filterGroupStyle}>
+          Cuenta:
+          <select
+            style={filterSelectStyle}
+            value={filters.accountId}
+            onChange={(e) => setFilters((f) => ({ ...f, accountId: e.target.value }))}
+          >
+            <option value="">Todas</option>
+            {useMemo(() => accountOptions, [accountOptions]).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label style={filterGroupStyle}>
           Estado:
           <select
+            style={filterSelectStyle}
             value={filters.status}
             onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
           >
             <option value="">Todos</option>
-            <option value="pending">Pendiente</option>
-            <option value="overdue">Vencido</option>
-            <option value="unpaid">Impagado</option>
-            <option value="paid">Pagado</option>
+            {FILTER_STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label style={filterGroupStyle}>
+          Mes:
+          <select
+            style={filterSelectStyle}
+            value={filters.month}
+            onChange={(e) => setFilters((f) => ({ ...f, month: e.target.value }))}
+          >
+            <option value="">Todos</option>
+            {useMemo(() => monthOptions, [monthOptions]).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label style={filterGroupStyle}>
+          Proveedor:
+          <select
+            style={filterSelectStyle}
+            value={filters.counterpartyId}
+            onChange={(e) => setFilters((f) => ({ ...f, counterpartyId: e.target.value }))}
+          >
+            <option value="">Todos</option>
+            {useMemo(() => counterpartyOptions, [counterpartyOptions]).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
           </select>
         </label>
 
@@ -748,7 +970,8 @@ export function CalendarPage() {
           bg={buttonBg}
           color={buttonColor}
           _hover={{ bg: buttonHover }}
-          onClick={() => setFilters({ accountId:"", categoryId:"", month:"", year:"", status:"" })}
+          width={isMobile ? "100%" : "auto"}
+          onClick={() => setFilters({ accountId:"", categoryId:"", counterpartyId:"", month:"", year:"", status:"" })}
         >
           Limpiar filtros
         </Button>
@@ -758,11 +981,29 @@ export function CalendarPage() {
         {accounts.length > 0 && (
           <div
             className="card"
-            style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", width:"100%", padding:"2px 0" }}
+            style={{
+              display:"flex",
+              gap:6,
+              flexWrap:"wrap",
+              alignItems:"center",
+              width:"100%",
+              padding:"2px 0",
+              overflowX:"hidden",
+            }}
           >
             <strong>Leyenda cuentas:</strong>
             {accounts.map((a) => (
-              <span key={a._id} style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
+              <span
+                key={a._id}
+                style={{
+                  display:"inline-flex",
+                  alignItems:"center",
+                  gap:6,
+                  maxWidth:"100%",
+                  whiteSpace:"normal",
+                  overflowWrap:"anywhere",
+                }}
+              >
                 <span
                   style={{
                     width:12, height:12, borderRadius:3,
@@ -780,7 +1021,7 @@ export function CalendarPage() {
         </div>
 
         <FullCalendar
-          key={`cal-${isMobile ? 'm' : 'd'}`}        
+          key={`cal-${isMobile ? 'm' : 'd'}-${calKey}`}
           ref={ref}
           plugins={[dayGridPlugin, interactionPlugin, listPlugin]}
           locale={esLocale}
@@ -790,7 +1031,9 @@ export function CalendarPage() {
 
           /* Vistas y cabecera */
           initialView={isMobile ? "listMonth" : "dayGridMonth"}
-          headerToolbar={{ left: "", center: "", right: "prev,next today" }}
+          headerToolbar={isMobile
+            ? { left: "prev,next", center: "", right: "today" }
+            : { left: "", center: "", right: "prev,next today" }}
           titleFormat={isMobile ? { month: "short", year: "numeric" } : { month: "long", year: "numeric" }}
           dayHeaderFormat={isMobile ? { weekday: "short" } : { weekday: "long" }}
           fixedWeekCount={false}
@@ -846,4 +1089,3 @@ export function CalendarPage() {
     </div>
   );
 }
-

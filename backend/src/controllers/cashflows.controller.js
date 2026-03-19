@@ -20,6 +20,21 @@ const asCategoryId = async (val) => {
   return byName._id;
 };
 
+const normalizeAmountByType = (amount, type) => {
+  const n = Number(amount)
+  if (!Number.isFinite(n)) return amount
+  const abs = Math.abs(n)
+  return type === 'out' ? -abs : abs
+}
+
+const normalizeCashflowAmount = (doc) => {
+  if (!doc || typeof doc !== 'object') return doc
+  return {
+    ...doc,
+    amount: normalizeAmountByType(doc.amount, doc.type),
+  }
+}
+
 // GET /api/cashflows
 export const list = async (req, res) => {
   try {
@@ -56,7 +71,7 @@ export const list = async (req, res) => {
       .sort({ date: 1 })
       .lean();
 
-    res.json(docs);
+    res.json(docs.map(normalizeCashflowAmount));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -224,7 +239,7 @@ export const calendar = async (req, res) => {
 
     const items = await Cashflow.find(
       q,
-      { date: 1, amount: 1, type: 1, account: 1, counterparty: 1, category: 1, status: 1 }
+      { date: 1, amount: 1, type: 1, account: 1, counterparty: 1, category: 1, status: 1, concept: 1 }
     )
       .sort({ date: 1 })
       .limit(1000)
@@ -237,7 +252,8 @@ export const calendar = async (req, res) => {
 
     const events = items.map((i) => {
       const ymd = toYMD(new Date(i.date));
-      const amountTxt = Number(i.amount).toLocaleString('es-ES', { minimumFractionDigits: 2 });
+      const normalizedAmount = normalizeAmountByType(i.amount, i.type);
+      const amountTxt = Number(normalizedAmount).toLocaleString('es-ES', { minimumFractionDigits: 2 });
       const title = `${i.counterparty?.name ?? '—'} · ${amountTxt}€${i.category?.name ? ` · ${i.category.name}` : ''}`;
 
       // estado UI derivado
@@ -261,13 +277,14 @@ export const calendar = async (req, res) => {
         color,
         extendedProps: {
           cashflowId: String(i._id),
-          amount: i.amount,
+          amount: normalizedAmount,
           type: i.type,
           status: i.status,   // persistido: pending|paid|cancelled
           uiStatus,           // derivado: pending|overdue|paid
           account: i.account,
           category: i.category,
           counterparty: i.counterparty,
+          concept: i.concept || '',
           dateYMD: ymd,
         },
       };
@@ -320,7 +337,7 @@ export const upcoming = async (req, res) => {
       .limit(50)
       .lean();
 
-    res.json(items);
+    res.json(items.map(normalizeCashflowAmount));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -391,21 +408,11 @@ const headerMap = (h) => {
   return null;
 };
 
-const typeMap = (v) => {
-  const t = (v ?? '').toString().trim().toLowerCase();
-  if (['in','cobro','entrada','abono'].includes(t)) return 'in';
-  if (['out','pago','salida','cargo','gasto'].includes(t)) return 'out';
-  return 'out';
+const invertImportedAmount = (amount) => {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return amount;
+  return -n;
 };
-
-
-const normalizeAmountByType = (amount, type) => {
-  const n = Number(amount)
-  if (!Number.isFinite(n)) return amount
-  const abs = Math.abs(n)
-  return type === 'out' ? -abs : abs
-}
-
 const parseAmount = (v) => {
   if (v === null || v === undefined || v === '') return NaN;
   if (typeof v === 'number') return v;
@@ -547,9 +554,8 @@ export const importCashflows = async (req, res) => {
         categoryId = cat._id;
       }
 
-      let type = typeMap(rec.type);
-      if (!rec.type || String(rec.type).trim() === '') type = amount < 0 ? 'out' : 'in';
-      amount = normalizeAmountByType(amount, type);
+      amount = invertImportedAmount(amount);
+      const type = amount < 0 ? 'out' : 'in';
 
       const concept = norm(rec.concept);
       const status = ['pending','paid','cancelled'].includes(lc(rec.status)) ? lc(rec.status) : 'pending';
