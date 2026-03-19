@@ -712,13 +712,13 @@ export function CalendarPage() {
     if (isGroup) {
       const sumTxt = Number(xp.sum || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 });
       return (
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%" }}>
+        <div style={{ display:"flex", flexDirection:isMobile ? "column" : "row", alignItems:isMobile ? "stretch" : "center", justifyContent:"space-between", gap:6, width:"100%" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
-            <strong style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            <strong style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:isMobile ? "normal" : "nowrap", wordBreak:"break-word" }}>
               {xp.accAlias || "Cuenta"}
             </strong>
           </div>
-          <div style={{ fontWeight:700 }}>{sumTxt}€</div>
+          <div style={{ fontWeight:700, color: amountTextColor, textAlign:isMobile ? "right" : "left" }}>{sumTxt}€</div>
         </div>
       );
     }
@@ -733,6 +733,64 @@ export function CalendarPage() {
       background: ui==="paid" ? "#9ca3af" : ui==="overdue" ? "#f59e0b" : ui==="unpaid" ? "#ef4444" : "transparent",
       color:"#fff"
     };
+
+    const handleStatusChange = (next) => {
+      const ymd = ev.startStr?.slice(0,10);
+      const id  = ev.id || xp.cashflowId || xp.id || xp._id;
+      if (!id) return;
+      setAllEvents(prev => prev.map(e => {
+        if (e.id !== id) return e;
+        const uiNext = computeUiStatus(next, ymd);
+        return { ...e, _status: next, _ui: uiNext,
+          extendedProps: { ...(e.extendedProps||{}), status: next, uiStatus: uiNext } };
+      }));
+      setCashflowStatus(id, next).catch(() => loadAll());
+    };
+
+    if (isMobile) {
+      return (
+        <div style={{ display:"flex", flexDirection:"column", gap:6, width:"100%", minWidth:0 }}>
+          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:8, minWidth:0 }}>
+            <div style={{ minWidth:0, flex:"1 1 auto", display:"flex", flexDirection:"column", gap:2 }}>
+              <span style={{
+                minWidth:0,
+                overflow:"hidden",
+                textOverflow:"ellipsis",
+                whiteSpace:"normal",
+                wordBreak:"break-word",
+                fontWeight:600,
+                color: primaryTextColor,
+              }}>
+                {prov}
+              </span>
+              {concept && (
+                <span style={{
+                  minWidth:0,
+                  whiteSpace:"normal",
+                  wordBreak:"break-word",
+                  fontSize:11,
+                  color: secondaryTextColor,
+                }}>
+                  {concept}
+                </span>
+              )}
+            </div>
+            <EventStatusMenu onChange={handleStatusChange} />
+          </div>
+
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+              {ui && ui!=="pending" && <span style={{ ...badgeStyle, marginLeft:0 }}>
+                {ui==="paid" ? "Pagado" : ui==="overdue" ? "Vencido" : "Impagado"}
+              </span>}
+            </div>
+            <strong style={{ color: amountTextColor, marginLeft:"auto", textAlign:"right", overflowWrap:"anywhere" }}>
+              {amount}€
+            </strong>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%" }}>
@@ -768,18 +826,7 @@ export function CalendarPage() {
 
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <strong style={{ color: amountTextColor }}>{amount}€</strong>
-          <EventStatusMenu onChange={(next)=> {
-            const ymd = ev.startStr?.slice(0,10);
-            const id  = ev.id || xp.cashflowId || xp.id || xp._id;
-            if (!id) return;
-            setAllEvents(prev => prev.map(e => {
-              if (e.id !== id) return e;
-              const uiNext = computeUiStatus(next, ymd);
-              return { ...e, _status: next, _ui: uiNext,
-                extendedProps: { ...(e.extendedProps||{}), status: next, uiStatus: uiNext } };
-            }));
-            setCashflowStatus(id, next).catch(() => loadAll());
-          }}/>
+          <EventStatusMenu onChange={handleStatusChange}/>
         </div>
       </div>
     );
