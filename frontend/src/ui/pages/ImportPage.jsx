@@ -75,7 +75,7 @@ const resolveImportType = (amount, rawType) => {
     return 'in';
   }
 
-  return Number.isFinite(n) && n < 0 ? 'out' : 'in';
+  return Number.isFinite(n) && n < 0 ? 'in' : 'out';
 };
 
 const headerMap = (h) => {

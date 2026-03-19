@@ -428,7 +428,7 @@ const resolveImportType = (amount, rawType) => {
     return 'in';
   }
 
-  return Number.isFinite(n) && n < 0 ? 'out' : 'in';
+  return Number.isFinite(n) && n < 0 ? 'in' : 'out';
 };
 const parseAmount = (v) => {
   if (v === null || v === undefined || v === '') return NaN;
