@@ -19,10 +19,12 @@ const app = express()
 app.set('trust proxy', 1)
 
 const ORIGINS = env.CORS_ORIGINS
+const JOTRINSA_ORIGIN_RE = /^https:\/\/([a-z0-9-]+\.)?jotrinsa\.com$/i
 
 const isAllowed = (origin) => {
   if (!origin) return true;
   if (ORIGINS.includes(origin)) return true;
+  if (JOTRINSA_ORIGIN_RE.test(origin)) return true;
   // permitir permalinks del sitio en Netlify:
   if (/--prevtesorejot\.netlify\.app$/.test(origin)) return true;
   return false;
