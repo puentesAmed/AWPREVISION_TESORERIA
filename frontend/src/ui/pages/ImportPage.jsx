@@ -62,6 +62,12 @@ const normalizeAmountByType = (amount, type) => {
   return type === 'out' ? -abs : abs;
 };
 
+const resolveImportType = (amount, rawType) => {
+  const n = Number(amount);
+  if (Number.isFinite(n) && n < 0) return 'in';
+  return norm(rawType) ? typeMap(rawType) : 'in';
+};
+
 const headerMap = (h) => {
   const k = (h ?? '')
     .toString()
@@ -130,8 +136,7 @@ const parseCsv = (text) => {
     const tmp = {}; mapped.forEach((k, idx) => { if (k) tmp[k] = cols[idx]; });
     const d = parseDateLoose(tmp.date); const amt = parseAmount(tmp.amount); const acc = norm(tmp.account);
     if (!d || isNaN(amt) || !acc) continue;
-    const hasExplicitType = !!norm(tmp.type);
-    const type = hasExplicitType ? typeMap(tmp.type) : (amt < 0 ? 'out' : 'in');
+    const type = resolveImportType(amt, tmp.type);
     out.push({
       dateYMD: toYMD(d),
       amount: normalizeAmountByType(amt, type),
@@ -164,8 +169,7 @@ async function parseXlsx(file) {
     for (const r of mappedRows) {
       const d = parseDateLoose(r.date); const amt = parseAmount(r.amount); const acc = norm(r.account);
       if (!d || isNaN(amt) || !acc) continue;
-      const hasExplicitType = !!norm(r.type);
-      const type = hasExplicitType ? typeMap(r.type) : (amt < 0 ? 'out' : 'in');
+      const type = resolveImportType(amt, r.type);
       out.push({
         dateYMD: toYMD(d),
         amount: normalizeAmountByType(amt, type),
@@ -351,4 +355,3 @@ export function ImportPage() {
     </Box>
   );
 }
-

@@ -399,6 +399,12 @@ const typeMap = (v) => {
   return 'out';
 };
 
+const resolveImportType = (amount, rawType) => {
+  const n = Number(amount);
+  if (Number.isFinite(n) && n < 0) return 'in';
+  return norm(rawType) ? typeMap(rawType) : 'in';
+};
+
 
 const normalizeAmountByType = (amount, type) => {
   const n = Number(amount)
@@ -548,8 +554,7 @@ export const importCashflows = async (req, res) => {
         categoryId = cat._id;
       }
 
-      let type = typeMap(rec.type);
-      if (!rec.type || String(rec.type).trim() === '') type = amount < 0 ? 'out' : 'in';
+      const type = resolveImportType(amount, rec.type);
       amount = normalizeAmountByType(amount, type);
 
       const concept = norm(rec.concept);
