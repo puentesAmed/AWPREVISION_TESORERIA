@@ -55,6 +55,13 @@ const normalizeAmountByType = (amount, type) => {
   return type === "out" ? -abs : abs;
 };
 
+const FILTER_STATUS_OPTIONS = [
+  { value: "unpaid", label: "Impagado" },
+  { value: "paid", label: "Pagado" },
+  { value: "pending", label: "Pendiente" },
+  { value: "overdue", label: "Vencido" },
+];
+
 /* ========= Menú de estado (botón) ========= */
 function EventStatusMenu({ onChange }) {
   const [open, setOpen] = React.useState(false);
@@ -455,7 +462,7 @@ export function CalendarPage() {
     Array.from({ length: 12 }, (_, i) => {
       const label = new Date(0, i).toLocaleString("es-ES", { month: "long" });
       return { value: String(i + 1), label: label[0].toUpperCase() + label.slice(1) };
-    }), []);
+    }).sort((a, b) => a.label.localeCompare(b.label, "es")), []);
 
   /* ===== efectos ===== */
   useEffect(() => { loadAll(); }, []);
@@ -759,13 +766,13 @@ export function CalendarPage() {
         </Button>
 
         <label style={{ gap:10, display:"flex", alignItems:"center" }}>
-          Cuenta:
+          Año:
           <select
-            value={filters.accountId}
-            onChange={(e) => setFilters((f) => ({ ...f, accountId: e.target.value }))}
+            value={filters.year}
+            onChange={(e) => setFilters((f) => ({ ...f, year: e.target.value }))}
           >
-            <option value="">Todas</option>
-            {useMemo(() => accountOptions, [accountOptions]).map((o) => (
+            <option value="">Todos</option>
+            {useMemo(() => yearOptions, [yearOptions]).map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
@@ -785,14 +792,27 @@ export function CalendarPage() {
         </label>
 
         <label style={{ gap:10, display:"flex", alignItems:"center" }}>
-          Proveedor:
+          Cuenta:
           <select
-            value={filters.counterpartyId}
-            onChange={(e) => setFilters((f) => ({ ...f, counterpartyId: e.target.value }))}
+            value={filters.accountId}
+            onChange={(e) => setFilters((f) => ({ ...f, accountId: e.target.value }))}
+          >
+            <option value="">Todas</option>
+            {useMemo(() => accountOptions, [accountOptions]).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
+          Estado:
+          <select
+            value={filters.status}
+            onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
           >
             <option value="">Todos</option>
-            {useMemo(() => counterpartyOptions, [counterpartyOptions]).map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+            {FILTER_STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </label>
@@ -811,29 +831,15 @@ export function CalendarPage() {
         </label>
 
         <label style={{ gap:10, display:"flex", alignItems:"center" }}>
-          Año:
+          Proveedor:
           <select
-            value={filters.year}
-            onChange={(e) => setFilters((f) => ({ ...f, year: e.target.value }))}
+            value={filters.counterpartyId}
+            onChange={(e) => setFilters((f) => ({ ...f, counterpartyId: e.target.value }))}
           >
             <option value="">Todos</option>
-            {useMemo(() => yearOptions, [yearOptions]).map((o) => (
+            {useMemo(() => counterpartyOptions, [counterpartyOptions]).map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
-          </select>
-        </label>
-
-        <label style={{ gap:10, display:"flex", alignItems:"center" }}>
-          Estado:
-          <select
-            value={filters.status}
-            onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
-          >
-            <option value="">Todos</option>
-            <option value="pending">Pendiente</option>
-            <option value="overdue">Vencido</option>
-            <option value="unpaid">Impagado</option>
-            <option value="paid">Pagado</option>
           </select>
         </label>
 

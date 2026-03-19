@@ -290,6 +290,23 @@ import {
 } from '@chakra-ui/react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
+const TOTALS_STATUS_OPTIONS = [
+  { value: 'cancelled', label: 'Cancelado' },
+  { value: 'paid', label: 'Pagado' },
+  { value: 'pending', label: 'Pendiente' },
+];
+
+const GRANULARITY_OPTIONS = [
+  { value: 'day', label: 'Día' },
+  { value: 'month', label: 'Mes' },
+  { value: 'week', label: 'Semana' },
+];
+
+const FLOW_TYPE_OPTIONS = [
+  { value: 'in', label: 'Cobros (in)' },
+  { value: 'out', label: 'Pagos (out)' },
+];
+
 export function TotalsPage() {
   const [from, setFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 30);
@@ -320,7 +337,12 @@ export function TotalsPage() {
     staleTime: 60_000,
   });
 
-  const accounts = useMemo(() => Array.isArray(accountsResp) ? accountsResp : [], [accountsResp]);
+  const accounts = useMemo(
+    () => (Array.isArray(accountsResp) ? [...accountsResp] : []).sort((a, b) =>
+      String(a.alias || a.name || '').localeCompare(String(b.alias || b.name || ''), 'es')
+    ),
+    [accountsResp]
+  );
 
   const { data: counterpartiesResp, isLoading: loadingCounterparties } = useQuery({
     queryKey: ['counterparties'],
@@ -329,7 +351,9 @@ export function TotalsPage() {
   });
 
   const counterparties = useMemo(
-    () => (Array.isArray(counterpartiesResp) ? counterpartiesResp : []),
+    () => (Array.isArray(counterpartiesResp) ? [...counterpartiesResp] : []).sort((a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''), 'es')
+    ),
     [counterpartiesResp]
   );
 
@@ -583,13 +607,6 @@ export function TotalsPage() {
         </Text>
 
         <Stack direction={{ base: 'column', md: 'row' }} spacing={3} mb={3}>
-          <Input aria-label="Desde" type="date" value={from} onChange={e => setFrom(e.target.value)} />
-          <Input aria-label="Hasta" type="date" value={to} onChange={e => setTo(e.target.value)} />
-          <Select aria-label="Granularidad" value={granularity} onChange={e => setGranularity(e.target.value)}>
-            <option value="day">Día</option>
-            <option value="week">Semana</option>
-            <option value="month">Mes</option>
-          </Select>
           <Select
             aria-label="Cuenta"
             value={account}
@@ -603,6 +620,19 @@ export function TotalsPage() {
               </option>
             ))}
           </Select>
+          <Input aria-label="Desde" type="date" value={from} onChange={e => setFrom(e.target.value)} />
+          <Select aria-label="Estado" value={status} onChange={e => setStatus(e.target.value)}>
+            <option value="">Todos los estados</option>
+            {TOTALS_STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </Select>
+          <Select aria-label="Granularidad" value={granularity} onChange={e => setGranularity(e.target.value)}>
+            {GRANULARITY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </Select>
+          <Input aria-label="Hasta" type="date" value={to} onChange={e => setTo(e.target.value)} />
           <Select
             aria-label="Proveedor"
             value={counterparty}
@@ -616,16 +646,11 @@ export function TotalsPage() {
               </option>
             ))}
           </Select>
-          <Select aria-label="Estado" value={status} onChange={e => setStatus(e.target.value)}>
-            <option value="">Todos los estados</option>
-            <option value="pending">Pendiente</option>
-            <option value="paid">Pagado</option>
-            <option value="cancelled">Cancelado</option>
-          </Select>
           <Select aria-label="Tipo de flujo" value={flowType} onChange={e => setFlowType(e.target.value)}>
-            <option value="out">Pagos (out)</option>
-            <option value="in">Cobros (in)</option>
             <option value="">Todos</option>
+            {FLOW_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </Select>
         </Stack>
 
