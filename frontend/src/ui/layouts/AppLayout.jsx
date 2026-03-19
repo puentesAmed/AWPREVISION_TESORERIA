@@ -20,24 +20,32 @@ import {
   Spacer,
   Divider,
   Avatar,
+  Badge,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  MenuDivider,
+  useToast,
 } from '@chakra-ui/react';
-import { HamburgerIcon, CloseIcon, SunIcon, MoonIcon } from '@chakra-ui/icons';
+import { HamburgerIcon, CloseIcon, SunIcon, MoonIcon, BellIcon } from '@chakra-ui/icons';
 import { useAuth } from '@/state/auth.js';
+import { useNotifications } from '@/state/notifications.js';
 
 const PAGES = Object.freeze([
-  { name: 'Dashboard',  path: '/dashboard' },
+  { name: 'Dashboard', path: '/dashboard' },
   { name: 'Calendario', path: '/calendar' },
-  { name: 'Totales',    path: '/totals' },
-  { name: 'Cuentas',    path: '/accounts' },
-  { name: 'Importar',   path: '/import' },
-  { name: 'Ajustes',    path: '/settings' },
+  { name: 'Totales', path: '/totals' },
+  { name: 'Cuentas', path: '/accounts' },
+  { name: 'Importar', path: '/import' },
+  { name: 'Ajustes', path: '/settings' },
 ]);
 
 function NavItem({ to, children, onClick }) {
-  const activeBg  = useColorModeValue('brand.100', 'neutral.700');
+  const activeBg = useColorModeValue('brand.100', 'neutral.700');
   const activeCol = useColorModeValue('brand.700', 'neutral.100');
-  const hoverBg   = useColorModeValue('neutral.100', 'neutral.700');
-  const linkCol   = useColorModeValue('neutral.800', 'neutral.100');
+  const hoverBg = useColorModeValue('neutral.100', 'neutral.700');
+  const linkCol = useColorModeValue('neutral.800', 'neutral.100');
 
   return (
     <ChakraLink
@@ -63,6 +71,10 @@ function NavItem({ to, children, onClick }) {
 
 export function AppLayout() {
   const { user, logout } = useAuth();
+  const { items, markAllAsRead, clearAll, push } = useNotifications();
+  const unreadCount = items.filter((item) => !item.read).length;
+
+  const toast = useToast();
   const nav = useNavigate();
   const loc = useLocation();
   const { colorMode, toggleColorMode } = useColorMode();
@@ -70,14 +82,14 @@ export function AppLayout() {
   const [scrolled, setScrolled] = React.useState(false);
 
   const headerBg = useColorModeValue('rgba(255,255,255,0.9)', 'rgba(17,17,17,0.7)');
-  const border   = useColorModeValue('neutral.200', 'neutral.700');
+  const border = useColorModeValue('neutral.200', 'neutral.700');
   const brandDot = useColorModeValue('brand.500', 'accent.500');
-  const contentBg = useColorModeValue('neutral.50','neutral.900');
-  const contentColor = useColorModeValue('neutral.800','neutral.100');
+  const contentBg = useColorModeValue('neutral.50', 'neutral.900');
+  const contentColor = useColorModeValue('neutral.800', 'neutral.100');
   const footerBg = useColorModeValue('brand.100', 'neutral.800');
-  const footerColor = useColorModeValue('neutral.900','neutral.100');
+  const footerColor = useColorModeValue('neutral.900', 'neutral.100');
+  const hoverLogoutBg = useColorModeValue('neutral.100', 'neutral.700');
 
-  // Sombra al hacer scroll
   React.useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 6);
     onScroll();
@@ -85,20 +97,25 @@ export function AppLayout() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Cierra drawer al navegar
   React.useEffect(() => {
     if (isOpen) onClose();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loc.pathname]);
 
   const handleLogout = () => {
+    push({ type: 'info', title: 'Sesión cerrada', message: 'Has salido correctamente de la aplicación' });
     logout();
+    toast({
+      title: 'Sesión cerrada',
+      status: 'info',
+      duration: 2000,
+      isClosable: true,
+    });
     nav('/login', { replace: true });
   };
 
   return (
     <Flex direction="column" minH="100vh" bg={contentBg} color={contentColor}>
-      {/* Header fijo */}
       <Box
         as="header"
         position="sticky"
@@ -127,7 +144,7 @@ export function AppLayout() {
           </HStack>
 
           <HStack spacing={1} ml={6} display={{ base: 'none', md: 'flex' }}>
-            {PAGES.map(p => (
+            {PAGES.map((p) => (
               <NavItem key={p.path} to={p.path}>
                 {p.name}
               </NavItem>
@@ -137,6 +154,48 @@ export function AppLayout() {
           <Spacer />
 
           <HStack spacing={2}>
+            <Menu>
+              <MenuButton
+                as={IconButton}
+                aria-label="Notificaciones"
+                icon={<BellIcon />}
+                variant="ghost"
+                size="sm"
+                position="relative"
+                onClick={markAllAsRead}
+              />
+              {unreadCount > 0 && (
+                <Badge
+                  colorScheme="red"
+                  borderRadius="full"
+                  px={2}
+                  position="absolute"
+                  transform="translate(10px, -8px)"
+                  pointerEvents="none"
+                >
+                  {unreadCount}
+                </Badge>
+              )}
+              <MenuList maxW="380px">
+                <Text px={3} py={2} fontSize="sm" fontWeight="bold">
+                  Notificaciones recientes
+                </Text>
+                <MenuDivider />
+                {items.length === 0 ? (
+                  <MenuItem isDisabled>No hay notificaciones</MenuItem>
+                ) : (
+                  items.slice(0, 6).map((item) => (
+                    <MenuItem key={item.id} display="block" whiteSpace="normal">
+                      <Text fontWeight="semibold">{item.title}</Text>
+                      {item.message ? <Text fontSize="sm">{item.message}</Text> : null}
+                    </MenuItem>
+                  ))
+                )}
+                <MenuDivider />
+                <MenuItem onClick={clearAll}>Limpiar notificaciones</MenuItem>
+              </MenuList>
+            </Menu>
+
             <IconButton
               aria-label="Cambiar tema"
               onClick={toggleColorMode}
@@ -154,7 +213,7 @@ export function AppLayout() {
               border="1px solid"
               borderColor={border}
               onClick={handleLogout}
-              _hover={{ bg: useColorModeValue('neutral.100', 'neutral.700') }}
+              _hover={{ bg: hoverLogoutBg }}
             >
               <Avatar size="sm" name={user?.name || 'Usuario'} />
               <Text display={{ base: 'none', md: 'inline' }} fontSize="sm">
@@ -166,14 +225,13 @@ export function AppLayout() {
         {scrolled && <Divider opacity={0.25} />}
       </Box>
 
-      {/* Drawer móvil */}
       <Drawer placement="left" onClose={onClose} isOpen={isOpen}>
         <DrawerOverlay />
         <DrawerContent pt="env(safe-area-inset-top)">
           <DrawerHeader borderBottomWidth="1px">Navegación</DrawerHeader>
           <DrawerBody>
             <VStack align="stretch" spacing={1}>
-              {PAGES.map(p => (
+              {PAGES.map((p) => (
                 <NavItem key={p.path} to={p.path} onClick={onClose}>
                   {p.name}
                 </NavItem>
@@ -189,12 +247,10 @@ export function AppLayout() {
         </DrawerContent>
       </Drawer>
 
-      {/* Contenido */}
       <Box as="main" flex="1" px={{ base: 4, md: 6 }} py={6}>
         <Outlet />
       </Box>
 
-      {/* Footer */}
       <Box
         as="footer"
         bg={footerBg}

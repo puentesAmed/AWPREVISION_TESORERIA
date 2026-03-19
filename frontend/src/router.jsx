@@ -57,6 +57,7 @@ import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppLayout } from './ui/layouts/AppLayout.jsx';
 import { LoginPage } from './ui/pages/LoginPage.jsx';
+import { RegisterPage } from './ui/pages/RegisterPage.jsx';
 import { CalendarPage } from './ui/pages/CalendarPage.jsx';
 import { TotalsPage } from './ui/pages/TotalsPage.jsx';
 import { AccountsPage } from './ui/pages/AccountsPage.jsx';
@@ -68,6 +69,7 @@ import { ProtectedLayout } from './ui/ProtectedLayout.jsx';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
+  { path: '/register', element: <RegisterPage /> },
 
   {
     path: '/',

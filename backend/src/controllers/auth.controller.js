@@ -3,18 +3,69 @@ import jwt from 'jsonwebtoken'
 import env from '../config/env.js'
 import User from '../models/User.js'
 
-export async function register(req,res){
-  const { email, password, name, role='fin' } = req.body
-  const passwordHash = await bcrypt.hash(password, 10)
-  const u = await User.create({ email, passwordHash, name, role })
-  res.status(201).json({ id: u.id })
+function signUserToken(user) {
+  return jwt.sign(
+    { sub: user.id, email: user.email, role: user.role, name: user.name },
+    env.JWT_SECRET,
+    { expiresIn: '12h' }
+  )
 }
-export async function login(req,res){
+
+function sanitizeUser(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    name: user.name,
+  }
+}
+
+export async function register(req, res) {
+  const { email, password, name, role = 'fin' } = req.body
+
+  if (!email || !password || !name) {
+    return res.status(400).json({ error: 'email, password y name son obligatorios' })
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'password debe tener al menos 6 caracteres' })
+  }
+
+  const normalizedEmail = String(email).trim().toLowerCase()
+  const cleanName = String(name).trim()
+
+  const existing = await User.findOne({ email: normalizedEmail }).lean()
+  if (existing) {
+    return res.status(409).json({ error: 'email ya registrado' })
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10)
+  const user = await User.create({
+    email: normalizedEmail,
+    passwordHash,
+    name: cleanName,
+    role,
+  })
+
+  const token = signUserToken(user)
+  res.status(201).json({ token, user: sanitizeUser(user) })
+}
+
+export async function login(req, res) {
   const { email, password } = req.body
-  const u = await User.findOne({ email })
-  if(!u) return res.status(401).json({ error:'invalid' })
-  const ok = await bcrypt.compare(password, u.passwordHash)
-  if(!ok) return res.status(401).json({ error:'invalid' })
-  const token = jwt.sign({ sub:u.id, email:u.email, role:u.role, name:u.name }, env.JWT_SECRET, { expiresIn:'12h' })
-  res.json({ token, user:{ id:u.id, email:u.email, role:u.role, name:u.name } })
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'email y password son obligatorios' })
+  }
+
+  const normalizedEmail = String(email).trim().toLowerCase()
+  const user = await User.findOne({ email: normalizedEmail })
+
+  if (!user) return res.status(401).json({ error: 'invalid' })
+
+  const ok = await bcrypt.compare(password, user.passwordHash)
+  if (!ok) return res.status(401).json({ error: 'invalid' })
+
+  const token = signUserToken(user)
+  res.json({ token, user: sanitizeUser(user) })
 }

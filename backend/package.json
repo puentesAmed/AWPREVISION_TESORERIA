@@ -8,7 +8,8 @@
         "start": "node src/index.js",
         "seed": "node --env-file=.env scripts/seed.js",
         "seed:categories": "node scripts/seedCategories.js",
-        "seed:users": "node scripts/users.seed.js"
+        "seed:users": "node scripts/users.seed.js",
+        "fix:cashflow-signs": "node --env-file=.env scripts/normalize-cashflow-signs.js"
     },
     "dependencies": {
         "bcrypt": "^5.1.1",

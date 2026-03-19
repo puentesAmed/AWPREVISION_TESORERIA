@@ -72,8 +72,8 @@ export const monthly = async (req, res, next) => {
       {
         $group: {
           _id: { y: { $year: '$date' }, m: { $month: '$date' } },
-          ingresos: { $sum: { $cond: [{ $gt: ['$amount', 0] }, '$amount', 0] } },
-          gastos:   { $sum: { $cond: [{ $lt: ['$amount', 0] }, { $abs: '$amount' }, 0] } }
+          ingresos: { $sum: { $cond: [{ $eq: ['$type', 'in'] }, { $abs: '$amount' }, 0] } },
+          gastos:   { $sum: { $cond: [{ $eq: ['$type', 'out'] }, { $abs: '$amount' }, 0] } }
         }
       },
       { $sort: { '_id.y': 1, '_id.m': 1 } }
@@ -106,7 +106,9 @@ export const createCashflow = async (req, res) => {
     const { category: catRaw, ...rest } = req.body;
     const categoryId = await asCategoryId(catRaw);
 
-    const doc = await Cashflow.create({ ...rest, date, account, amount, type, category: categoryId });
+    const normalizedAmount = normalizeAmountByType(amount, type);
+
+    const doc = await Cashflow.create({ ...rest, date, account, amount: normalizedAmount, type, category: categoryId });
     const populated = await doc.populate('account counterparty category');
     res.status(201).json(populated);
   } catch (e) {
@@ -124,6 +126,23 @@ export const updateCashflow = async (req, res) => {
     const update = { ...req.body };
     if (Object.prototype.hasOwnProperty.call(req.body, 'category')) {
       update.category = await asCategoryId(req.body.category); // ''|null|undefined => null
+    }
+
+    const hasAmount = Object.prototype.hasOwnProperty.call(update, 'amount');
+    const hasType = Object.prototype.hasOwnProperty.call(update, 'type');
+
+    if (hasType && !['in', 'out'].includes(update.type)) {
+      return res.status(400).json({ error: 'INVALID_TYPE' });
+    }
+
+    if (hasAmount || hasType) {
+      const existing = await Cashflow.findById(id, { amount: 1, type: 1 }).lean();
+      if (!existing) return res.status(404).json({ error: 'not_found' });
+
+      const normalizedType = hasType ? update.type : existing.type;
+      const amountToNormalize = hasAmount ? update.amount : existing.amount;
+      update.amount = normalizeAmountByType(amountToNormalize, normalizedType);
+      update.type = normalizedType;
     }
 
     const updated = await Cashflow.findByIdAndUpdate(id, update, { new: true })
@@ -379,6 +398,14 @@ const typeMap = (v) => {
   return 'out';
 };
 
+
+const normalizeAmountByType = (amount, type) => {
+  const n = Number(amount)
+  if (!Number.isFinite(n)) return amount
+  const abs = Math.abs(n)
+  return type === 'out' ? -abs : abs
+}
+
 const parseAmount = (v) => {
   if (v === null || v === undefined || v === '') return NaN;
   if (typeof v === 'number') return v;
@@ -521,8 +548,8 @@ export const importCashflows = async (req, res) => {
       }
 
       let type = typeMap(rec.type);
-      if (!rec.type || String(rec.type).trim() === '') type = amount < 0 ? 'in' : 'out';
-      if (amount < 0 && type !== 'in') type = 'in'; // coherencia signo→tipo
+      if (!rec.type || String(rec.type).trim() === '') type = amount < 0 ? 'out' : 'in';
+      amount = normalizeAmountByType(amount, type);
 
       const concept = norm(rec.concept);
       const status = ['pending','paid','cancelled'].includes(lc(rec.status)) ? lc(rec.status) : 'pending';

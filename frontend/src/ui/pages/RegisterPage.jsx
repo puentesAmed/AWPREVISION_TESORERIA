@@ -2,7 +2,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -22,28 +22,36 @@ import {
 } from '@chakra-ui/react';
 import { ViewIcon, ViewOffIcon } from '@chakra-ui/icons';
 
-import { useAuth } from '../../state/auth.js';
-import { useNotifications } from '../../state/notifications.js';
-import { api } from '../../lib/api.js';
+import { useAuth } from '@/state/auth.js';
+import { useNotifications } from '@/state/notifications.js';
+import { api } from '@/lib/api.js';
 
-const schema = z.object({
-  email: z.string().email('Formato de email no válido'),
-  password: z.string().min(6, 'Mínimo 6 caracteres'),
-});
+const schema = z
+  .object({
+    name: z.string().min(2, 'Ingresa tu nombre'),
+    email: z.string().email('Formato de email no válido'),
+    password: z.string().min(6, 'Mínimo 6 caracteres'),
+    confirmPassword: z.string().min(6, 'Mínimo 6 caracteres'),
+  })
+  .refine((values) => values.password === values.confirmPassword, {
+    message: 'Las contraseñas no coinciden',
+    path: ['confirmPassword'],
+  });
 
-export function LoginPage() {
+export function RegisterPage() {
   const { register, handleSubmit, formState } = useForm({
     resolver: zodResolver(schema),
   });
-  const { errors, isSubmitting } = formState;
 
   const toast = useToast();
+  const navigate = useNavigate();
   const { login } = useAuth();
   const pushNotification = useNotifications((state) => state.push);
-  const nav = useNavigate();
-  const loc = useLocation();
 
   const [showPwd, setShowPwd] = React.useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = React.useState(false);
+
+  const { errors, isSubmitting } = formState;
 
   const cardBg = useColorModeValue('white', 'neutral.800');
   const border = useColorModeValue('neutral.200', 'neutral.700');
@@ -51,29 +59,28 @@ export function LoginPage() {
   const btnHover = useColorModeValue('brand.600', 'accent.600');
   const btnColor = useColorModeValue('white', 'black');
 
-  const onSubmit = async (values) => {
+  const onSubmit = async (formValues) => {
+    const payload = { ...formValues };
+    delete payload.confirmPassword;
     try {
-      const { data } = await api.post('/auth/login', values);
+      const { data } = await api.post('/auth/register', payload);
       login(data.user, data.token);
       pushNotification({
         type: 'success',
-        title: 'Inicio de sesión exitoso',
-        message: `Accediste como ${data.user?.email}`,
+        title: 'Cuenta creada',
+        message: `Bienvenido/a ${data.user?.name}`,
       });
       toast({
-        title: `Bienvenido, ${data.user?.name || 'usuario'}`,
+        title: 'Cuenta creada correctamente',
         status: 'success',
         duration: 2500,
         isClosable: true,
       });
-      nav(loc.state?.from?.pathname || '/dashboard', { replace: true });
-    } catch (err) {
-      const message = err?.response?.status === 401
-        ? 'Credenciales incorrectas'
-        : 'No se pudo iniciar sesión';
-
+      navigate('/dashboard', { replace: true });
+    } catch (error) {
+      const message = error?.response?.data?.error || 'No se pudo crear la cuenta';
       toast({
-        title: 'Error de acceso',
+        title: 'Error en el registro',
         description: message,
         status: 'error',
         duration: 3000,
@@ -95,20 +102,20 @@ export function LoginPage() {
       boxShadow={useColorModeValue('sm', 'none')}
     >
       <Heading as="h2" size="lg" mb={6} textAlign="center">
-        Iniciar sesión
+        Crear cuenta
       </Heading>
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <VStack spacing={4} align="stretch">
+          <FormControl isInvalid={!!errors.name}>
+            <FormLabel>Nombre</FormLabel>
+            <Input type="text" placeholder="Tu nombre" autoComplete="name" {...register('name')} />
+            <FormErrorMessage>{errors.name?.message}</FormErrorMessage>
+          </FormControl>
+
           <FormControl isInvalid={!!errors.email}>
             <FormLabel>Email</FormLabel>
-            <Input
-              type="email"
-              placeholder="tucorreo@dominio.com"
-              autoComplete="email"
-              autoFocus
-              {...register('email')}
-            />
+            <Input type="email" placeholder="tucorreo@dominio.com" autoComplete="email" {...register('email')} />
             <FormErrorMessage>{errors.email?.message}</FormErrorMessage>
           </FormControl>
 
@@ -118,7 +125,7 @@ export function LoginPage() {
               <Input
                 type={showPwd ? 'text' : 'password'}
                 placeholder="••••••••"
-                autoComplete="current-password"
+                autoComplete="new-password"
                 {...register('password')}
               />
               <InputRightElement width="3rem">
@@ -136,22 +143,46 @@ export function LoginPage() {
             <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
           </FormControl>
 
+          <FormControl isInvalid={!!errors.confirmPassword}>
+            <FormLabel>Confirmar contraseña</FormLabel>
+            <InputGroup>
+              <Input
+                type={showConfirmPwd ? 'text' : 'password'}
+                placeholder="••••••••"
+                autoComplete="new-password"
+                {...register('confirmPassword')}
+              />
+              <InputRightElement width="3rem">
+                <IconButton
+                  aria-label={showConfirmPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  size="sm"
+                  variant="ghost"
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setShowConfirmPwd((s) => !s)}
+                  icon={showConfirmPwd ? <ViewOffIcon /> : <ViewIcon />}
+                />
+              </InputRightElement>
+            </InputGroup>
+            <FormErrorMessage>{errors.confirmPassword?.message}</FormErrorMessage>
+          </FormControl>
+
           <Button
             type="submit"
             bg={btnBg}
             color={btnColor}
             _hover={{ bg: btnHover }}
             isLoading={isSubmitting}
-            loadingText="Accediendo"
+            loadingText="Creando cuenta"
             width="full"
           >
-            Entrar
+            Registrarme
           </Button>
 
           <Text textAlign="center" fontSize="sm">
-            ¿No tienes cuenta?{' '}
-            <Link as={RouterLink} to="/register" color="brand.500" fontWeight="semibold">
-              Crear cuenta
+            ¿Ya tienes cuenta?{' '}
+            <Link as={RouterLink} to="/login" color="brand.500" fontWeight="semibold">
+              Iniciar sesión
             </Link>
           </Text>
         </VStack>
