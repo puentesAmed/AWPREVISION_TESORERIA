@@ -224,7 +224,7 @@ export const calendar = async (req, res) => {
 
     const items = await Cashflow.find(
       q,
-      { date: 1, amount: 1, type: 1, account: 1, counterparty: 1, category: 1, status: 1 }
+      { date: 1, amount: 1, type: 1, account: 1, counterparty: 1, category: 1, status: 1, concept: 1 }
     )
       .sort({ date: 1 })
       .limit(1000)
@@ -268,6 +268,7 @@ export const calendar = async (req, res) => {
           account: i.account,
           category: i.category,
           counterparty: i.counterparty,
+          concept: i.concept || '',
           dateYMD: ymd,
         },
       };
@@ -396,6 +397,22 @@ const typeMap = (v) => {
   if (['in','cobro','entrada','abono'].includes(t)) return 'in';
   if (['out','pago','salida','cargo','gasto'].includes(t)) return 'out';
   return 'out';
+};
+
+const resolveImportType = (amount, rawType) => {
+  const n = Number(amount);
+  const hasExplicitType = !!norm(rawType);
+  const mappedType = hasExplicitType ? typeMap(rawType) : null;
+
+  if (mappedType === 'out') {
+    return Number.isFinite(n) && n < 0 ? 'in' : 'out';
+  }
+
+  if (mappedType === 'in') {
+    return 'in';
+  }
+
+  return Number.isFinite(n) && n < 0 ? 'out' : 'in';
 };
 
 
@@ -547,8 +564,7 @@ export const importCashflows = async (req, res) => {
         categoryId = cat._id;
       }
 
-      let type = typeMap(rec.type);
-      if (!rec.type || String(rec.type).trim() === '') type = amount < 0 ? 'out' : 'in';
+      const type = resolveImportType(amount, rec.type);
       amount = normalizeAmountByType(amount, type);
 
       const concept = norm(rec.concept);
