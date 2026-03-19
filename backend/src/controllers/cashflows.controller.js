@@ -408,27 +408,10 @@ const headerMap = (h) => {
   return null;
 };
 
-const typeMap = (v) => {
-  const t = (v ?? '').toString().trim().toLowerCase();
-  if (['in','cobro','entrada','abono'].includes(t)) return 'in';
-  if (['out','pago','salida','cargo','gasto'].includes(t)) return 'out';
-  return 'out';
-};
-
-const resolveImportType = (amount, rawType) => {
+const invertImportedAmount = (amount) => {
   const n = Number(amount);
-  const hasExplicitType = !!norm(rawType);
-  const mappedType = hasExplicitType ? typeMap(rawType) : null;
-
-  if (mappedType === 'out') {
-    return Number.isFinite(n) && n < 0 ? 'in' : 'out';
-  }
-
-  if (mappedType === 'in') {
-    return 'in';
-  }
-
-  return Number.isFinite(n) && n < 0 ? 'in' : 'out';
+  if (!Number.isFinite(n)) return amount;
+  return -n;
 };
 const parseAmount = (v) => {
   if (v === null || v === undefined || v === '') return NaN;
@@ -571,8 +554,8 @@ export const importCashflows = async (req, res) => {
         categoryId = cat._id;
       }
 
-      const type = resolveImportType(amount, rec.type);
-      amount = normalizeAmountByType(amount, type);
+      amount = invertImportedAmount(amount);
+      const type = amount < 0 ? 'out' : 'in';
 
       const concept = norm(rec.concept);
       const status = ['pending','paid','cancelled'].includes(lc(rec.status)) ? lc(rec.status) : 'pending';

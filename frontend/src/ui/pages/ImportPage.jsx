@@ -271,28 +271,12 @@ export function ImportPage() {
     if (!file) return;
     setLoading(true); setErrMsg(''); setResult(null);
     try {
-      let records = [];
-      if (/\.csv$/i.test(file.name)) {
-        const text = await file.text();
-        records = parseCsv(text);
-      } else if (/\.(xlsx|xls)$/i.test(file.name)) {
-        records = await parseXlsx(file);
-      } else {
-        const fd = new FormData(); fd.append('file', file);
-        const { data } = await api.post('/cashflows/import', fd);
-        setResult(data); return;
-      }
-
-      const data = await dedupeAndUpload(records);
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await api.post('/cashflows/import', fd);
       setResult(data);
     } catch (e) {
-      try {
-        const fd = new FormData(); fd.append('file', file);
-        const { data } = await api.post('/cashflows/import', fd);
-        setResult(data);
-      } catch (err) {
-        setErrMsg(err.response?.data?.error || err.message);
-      }
+      setErrMsg(e.response?.data?.error || e.message);
     } finally {
       setLoading(false);
     }
